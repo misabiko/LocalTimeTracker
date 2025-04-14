@@ -1,0 +1,18 @@
+- TODO package.json → deno.jsonc
+- TODO Read csv timesheet
+- TODO Start/stop timer
+- TODO Mimic Toggl Track's UI
+  - TODO Remap times
+- TODO Integrate with jira
+  - TODO Link to task
+  - TODO Test jira API
+  - TODO Update jira time track
+  - TODO Diff local logged time with jira time
+- TODO Show remaining shift time
+  - TODO Deduct average week excess time from week's 40 hours
+- TODO Per day hour graph
+- TODO Per week hour graph
+- TODO External (onedrive) csv
+  - TODO Try accessing (read-only) csv file from Excel
+  - TODO Confirm CSV history on OneDrive
+- TODO Ctrl+Z
