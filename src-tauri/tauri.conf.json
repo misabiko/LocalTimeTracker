@@ -4,10 +4,10 @@
   "version": "0.1.0",
   "identifier": "com.local_timesheet.app",
   "build": {
-    "beforeDevCommand": "deno task dev",
+    "frontendDist": "../build",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "deno task build",
-    "frontendDist": "../build"
+    "beforeDevCommand": "deno task vite:dev",
+    "beforeBuildCommand": "deno task vite:build"
   },
   "app": {
     "windows": [
