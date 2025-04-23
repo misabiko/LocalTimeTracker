@@ -1,8 +1,9 @@
-- TODO package.json → deno.jsonc
-- TODO Read csv timesheet
+- TODO Manual entry
+- TODO Save to file
 - TODO Start/stop timer
-- TODO Mimic Toggl Track's UI
-  - TODO Remap times
+- TODO Import toggl timesheet into main timesheet
+- TODO package.json → deno.jsonc
+- TODO Remap times
 - TODO Integrate with jira
   - TODO Link to task
   - TODO Test jira API
@@ -12,7 +13,9 @@
   - TODO Deduct average week excess time from week's 40 hours
 - TODO Per day hour graph
 - TODO Per week hour graph
-- TODO External (onedrive) csv
-  - TODO Try accessing (read-only) csv file from Excel
+- TODO Try accessing (read-only) csv file from Excel
   - TODO Confirm CSV history on OneDrive
+- TODO Include clickup timesheet
+  - TODO Update ClickUp timesheet with different descriptions
+- TODO Simple backup management
 - TODO Ctrl+Z

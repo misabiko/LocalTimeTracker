@@ -13,11 +13,20 @@
 
 	let entries: TimeSheetEntry[] | null = $state(null);
 
-	invoke('get_entries', { date: '2025-04-02' })
-		.then(e => {
-            entries = (e as TimeSheetEntry[]) ?? null;
-            console.log($state.snapshot(entries));
-        });
+    let simpleDate = $state(new Date().toISOString().split('T')[0]);
+    let fullDate = $derived.by(() => {
+		const [year, month, date] = simpleDate.split('-').map(n => parseInt(n));
+        return new Date(year, month - 1, date);
+    });
+
+    $effect(() => {
+        invoke('get_entries', { date: simpleDate })
+            .then(e => {
+                entries = (e as TimeSheetEntry[]) ?? null;
+                console.log($state.snapshot(simpleDate), $state.snapshot(entries));
+            });
+	})
+
 
     // let currentEntry: TimeSheetEntry = {
 	// 	description: 'Test entry',
@@ -32,9 +41,8 @@
 	function updateFakeNow() {
         const fakeNowRaw = new Date();
         //TODO Clean once we use current date properly
-        fakeNowRaw.setFullYear(2025, 4, 2);
-        fakeNowRaw.setMonth(4, 2);
-        fakeNowRaw.setHours(fakeNowRaw.getHours() - 6);
+        // fakeNowRaw.setFullYear(fullDate.getFullYear(), fullDate.getMonth(), fullDate.getDate());
+        // fakeNowRaw.setHours(fakeNowRaw.getHours() - 6);
         fakeNow = fakeNowRaw;
         requestAnimationFrame(updateFakeNow);
 	}
@@ -53,6 +61,12 @@
 		return date.getHours()
 			+ date.getMinutes() / 60
 			+ date.getSeconds() / 3600;
+	}
+
+    function incrementDate(delta: number) {
+        const [year, month, date] = simpleDate.split('-').map(n => parseInt(n));
+        const newDate = new Date(year, month - 1, date + delta);
+		simpleDate = newDate.toISOString().split('T')[0];
 	}
 
     const emPerHour = 4;
@@ -135,7 +149,11 @@
 	<input type='text' bind:value={entryMessage} placeholder='What are you working on?'/>
 </div>
 <!--TODO Padding-->
-<!--TODO Date title & selector-->
+<div id='calendar-controls'>
+	<button onclick={() => incrementDate(-1)}>{"<"}</button>
+	<input id='date' type='date' bind:value={simpleDate}/>
+	<button onclick={() => incrementDate(1)}>{">"}</button>
+</div>
 <div id='calendar'>
 <!--	TODO Format with Intl-->
 	{#each Array(23) as _, i}
