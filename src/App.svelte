@@ -1,5 +1,15 @@
 ﻿<script lang='ts'>
-	let entryMessage = $state('');
+    import { invoke } from '@tauri-apps/api/core';
+
+    let entryMessage = $state('');
+
+    //TODO List entries of the day
+	invoke('get_entries', { date: new Date() })
+		.then(entries => console.log(entries));
+
+	//TODO Show one entry block
+	//TODO Start new entry
+	//TODO Update block size of current entry in real time
 </script>
 
 <style>
