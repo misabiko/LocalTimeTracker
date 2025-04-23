@@ -1,6 +1,5 @@
 - TODO Manual entry
 - TODO Save to file
-- TODO Start/stop timer
 - TODO Import toggl timesheet into main timesheet
 - TODO package.json → deno.jsonc
 - TODO Remap times

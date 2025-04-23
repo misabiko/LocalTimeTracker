@@ -63,6 +63,41 @@ fn add_entry(entry: TimeSheetEntryRaw) -> bool {
     true
 }
 
+#[tauri::command]
+fn update_entry(entry: TimeSheetEntryRaw) -> bool {
+    let timesheet_path = std::env::var("TIMESHEET_PATH").unwrap();
+    let mut existing_entries = match csv::Reader::from_path(&timesheet_path)
+    {
+        Ok(mut reader) => reader.deserialize::<TimeSheetEntryRaw>()
+            .into_iter()
+            .map(|e| e.unwrap().try_into().unwrap())
+            .collect::<Vec<TimeSheetEntry>>(),
+        //TODO Pattern match for NotFound specifically and panic otherwise
+        Err(_) => vec![],
+    };
+
+    let entry: TimeSheetEntry = entry.try_into().unwrap();
+    let index = existing_entries.iter().position(|e|
+        entry.description == e.description && entry.start_time == e.start_time
+    ).expect("Entry not found");
+    existing_entries[index] = entry;
+
+    let mut writer = csv::Writer::from_path(&timesheet_path).unwrap();
+
+    for entry in existing_entries {
+        // let entry: TimeSheetEntry = raw_entry.try_into().unwrap();
+        writer.serialize(entry).unwrap();
+    }
+    writer.flush().unwrap();
+
+    true
+}
+
+//TODO Handle as hash trait
+// fn get_hash(entry: &TimeSheetEntryRaw) -> String {
+//     format!("{}♢{}", entry.description, entry.start_time)
+// }
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     dotenvy::dotenv().unwrap();
@@ -72,6 +107,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_entries,
             add_entry,
+            update_entry,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

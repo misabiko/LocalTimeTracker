@@ -1,9 +1,12 @@
 ﻿<script lang='ts'>
+	//TODO Enforce indent to tabs
     import {invoke} from '@tauri-apps/api/core';
     import {onMount} from "svelte";
 
-    //TODO Figure out an id thing to modify existing entries (need to resolve diff start date, and can't rely just on description)
     let entryMessage = $state('');
+    //TODO Get currentEntry from last ongoing entry
+	//TODO Warn multiple ongoing entries
+    let currentEntry: TimeSheetEntry | null = $state(null);
 
     type TimeSheetEntry = {
         description: string
@@ -48,7 +51,6 @@
         requestAnimationFrame(updateFakeNow);
 	}
 
-	//TODO Start new entry
 	//TODO Week view
 
 	function getEntryDuration(entry: TimeSheetEntry) {
@@ -77,34 +79,11 @@
     const emPerHour = 4;
     const blockMilliToEm = 1 / 1000 / 60 / 60 * emPerHour;
 
-    async function addTestEntry() {
-        const entry = {
-			description: entryMessage,
-			start_time: new Date().toISOString(),
-			end_time: new Date(new Date().getTime() + 1000 * 60 * 60).toISOString(),
-			//TODO Handle string vs array for deserializing
-			tags: 'test',
-		};
-
-        console.log(entry);
-
-        try {
-            const success = await invoke('add_entry', {entry});
-
-            if (!success)
-                throw new Error('Failed to add entry');
-            entries = [...(entries ?? []), entry];
-            entryMessage = '';
-        }catch (e) {
-			console.error(e);
-		}
-	}
-
     async function startNewEntry() {
-        if (!entries)
+        if (!entries || currentEntry != null)
             return;
 
-        const entry = {
+        currentEntry = {
 			description: entryMessage,
 			start_time: new Date().toISOString(),
 			end_time: null,
@@ -113,19 +92,46 @@
 
         try {
             const success = await invoke('add_entry', {entry: {
-                ...entry,
+                ...$state.snapshot(currentEntry),
 				//TODO Send array to add_entry
 				tags: '',
 			}});
 
             if (!success)
                 throw new Error('Failed to add entry');
-            entries.push(entry);
+
+            entries.push($state.snapshot(currentEntry));
             entryMessage = '';
         }catch (e) {
             console.error(e);
         }
 	}
+
+    async function stopCurrentEntry() {
+        if (!currentEntry)
+			return;
+
+        // const entryHash = getHash(currentEntry);
+        currentEntry.end_time = new Date().toISOString();
+
+        try {
+			const success = await invoke('update_entry', {
+                entry: {
+                    ...$state.snapshot(currentEntry),
+                    tags: currentEntry.tags.join(','),
+                }
+            });
+        }catch (e) {
+			console.error(e);
+		}
+
+        currentEntry = null;
+	}
+
+    // const HashSplitter = '♢';
+    // function getHash(entry: TimeSheetEntry): string {
+    //     return entry.description + HashSplitter + entry.start_time;
+	// }
 </script>
 
 <style>
@@ -202,9 +208,8 @@
 
 <div id='timer-topbar'>
 	<input type='text' bind:value={entryMessage} placeholder='What are you working on?'/>
-<!--TODO Start button adding entry-->
 	<button onclick={() => startNewEntry()} disabled={!entryMessage.length}>Start</button>
-<!--TODO Stop button setting end time-->
+	<button onclick={() => stopCurrentEntry()} disabled={!currentEntry}>Stop</button>
 <!--TODO Manual entry mode-->
 </div>
 <!--TODO Padding-->
@@ -217,7 +222,6 @@
 	{#if currentDate !== new Date().toISOString().split('T')[0]}
 		<button onclick={() => setCurrentDate(new Date())}>Today</button>
 	{/if}
-	<button onclick={() => addTestEntry()} disabled={!entryMessage.length}>Add Entry</button>
 </div>
 <div id='calendar'>
 <!--	TODO Format with Intl-->
