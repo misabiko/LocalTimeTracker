@@ -335,6 +335,23 @@
 			   }
 		/>
 	{/if}
+	<input
+		type='number'
+		readonly={!modalEntry.end_time}
+		bind:value={
+			() => {
+                const endTime = modalEntry.end_time ?? fakeNow;
+				return (endTime.getTime() - modalEntry.start_time.getTime()) / 1000 / 60 / 60;
+			},
+			v => {
+				if (!modalEntry.end_time)
+					return;
+				const newEndTime = new Date(modalEntry.start_time);
+				newEndTime.setHours(newEndTime.getHours() + v);
+				modalEntry.end_time.setTime(newEndTime.getTime());
+			}
+		}
+	/>
 	<input type='text' readonly value={modalEntry.tags}/>
 	{/if}
 	<!--TODO Support closing by clicking on backdrop-->
