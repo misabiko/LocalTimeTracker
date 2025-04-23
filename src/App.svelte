@@ -173,6 +173,9 @@
     function showEntryModal(index: number) {
         if (modalEntryIndex !== null)
             return;
+        //Could replace with 'Import' tag or field
+        if (entries === null || entries[index].tags.includes('Toggl'))
+			return;
         modalEntryIndex = index;
 		modalEntryElement?.showModal();
 	}
@@ -250,6 +253,11 @@
 		border-radius: 4px;
 	}
 
+	/*TODO temp*/
+	.entry-block.from-toggl {
+		background-color: mediumpurple;
+	}
+
 	.entry-block > span {
 		padding: 0 0.5em;
 	}
@@ -285,8 +293,10 @@
 <!--TODO Total time-->
 </div>
 <div id='calendar'>
-<!--	TODO Format with Intl-->
-<!--	TODO Trim hours and offset blocks for it-->
+<!--TODO Format with Intl-->
+<!--TODO Trim hours and offset blocks for it-->
+<!--TODO Show marker at current time-->
+<!--TODO	Start scrolled to marker-->
 	{#each Array(23) as _, i}
 		<div class='timestamp'>{i + 1}:00</div>
 		<div class='entry-row'></div>
@@ -296,9 +306,11 @@
 			<!--TODO Thicker hitbox on tiny heights-->
 			<div
 					class='entry-block'
+					class:from-toggl={entry.tags.includes('Toggl')}
 					style:height={`${getEntryDuration(entry) * blockMilliToEm}em`}
 					style:top={`${getDecimalHours(new Date(entry.start_time)) * emPerHour}em`}
 					onclick={() => showEntryModal(i)}
+					role='button'
 			>
 				<span>{entry.description}</span>
 			</div>

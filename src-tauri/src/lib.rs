@@ -13,7 +13,13 @@ fn get_entries(date: &str) -> Vec<TimeSheetEntry> {
         .unwrap();
     entries.extend(toggl_rdr.deserialize::<TogglEntryRaw>()
         .into_iter()
-        .map(|e| e.unwrap().try_into().unwrap())
+        .map(|e| {
+            let mut entry: TimeSheetEntry = e.unwrap().try_into().unwrap();
+            if !entry.tags.iter().any(|t| t == "Toggl") {
+                entry.tags.push("Toggl".to_string());
+            }
+            entry
+        })
     );
 
     let timesheet_path = std::env::var("TIMESHEET_PATH").unwrap();
