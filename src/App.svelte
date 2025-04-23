@@ -15,36 +15,34 @@
 
 	invoke('get_entries', { date: '2025-04-02' })
 		.then(e => {
-            // console.log(entries);
-            // entries = (e as TimeSheetEntry[]) ?? null;
+            entries = (e as TimeSheetEntry[]) ?? null;
             console.log($state.snapshot(entries));
         });
 
-    let currentEntry: TimeSheetEntry = {
-		description: 'Test entry',
-		start_time: new Date(2025, 4, 2, 10, 30).toISOString(),
-		end_time: null,
-		tags: []
-	};
-    let currentEntryDuration = $state(getEntryDuration(currentEntry));
-    onMount(() => {
-        requestAnimationFrame(updateCurrentEntrySize);
-	})
+    // let currentEntry: TimeSheetEntry = {
+	// 	description: 'Test entry',
+	// 	start_time: new Date(2025, 4, 2, 10, 30).toISOString(),
+	// 	end_time: null,
+	// 	tags: []
+	// };
+    let fakeNow = $state(new Date());
+    onMount(() => {requestAnimationFrame(updateFakeNow);})
 
-	function updateCurrentEntrySize() {
-        currentEntryDuration = getEntryDuration(currentEntry);
-        requestAnimationFrame(updateCurrentEntrySize);
+	//TODO Disable realtime out of focus
+	function updateFakeNow() {
+        const fakeNowRaw = new Date();
+        //TODO Clean once we use current date properly
+        fakeNowRaw.setFullYear(2025, 4, 2);
+        fakeNowRaw.setMonth(4, 2);
+        fakeNowRaw.setHours(fakeNowRaw.getHours() - 6);
+        fakeNow = fakeNowRaw;
+        requestAnimationFrame(updateFakeNow);
 	}
 
 	//TODO Start new entry
-	//TODO Update block size of current entry in real time
 	//TODO Week view
 
 	function getEntryDuration(entry: TimeSheetEntry) {
-        const fakeNow = new Date();
-        fakeNow.setFullYear(2025, 4, 2);
-        fakeNow.setMonth(4, 2);
-        fakeNow.setHours(fakeNow.getHours() - 6);
         const endTime = entry.end_time ? new Date(entry.end_time) : fakeNow;
 
 		const start = new Date(entry.start_time);
@@ -155,11 +153,11 @@
 			</div>
 		{/each}
 	{/if}
-	<div
-			class='entry-block current-entry'
-			style:height={`${currentEntryDuration * blockMilliToEm}em`}
-			style:top={`${getDecimalHours(new Date(currentEntry.start_time)) * emPerHour}em`}
-	>
-		<span>{currentEntry.description}</span>
-	</div>
+<!--	<div-->
+<!--			class='entry-block current-entry'-->
+<!--			style:height={`${getEntryDuration(currentEntry) * blockMilliToEm}em`}-->
+<!--			style:top={`${getDecimalHours(new Date(currentEntry.start_time)) * emPerHour}em`}-->
+<!--	>-->
+<!--		<span>{currentEntry.description}</span>-->
+<!--	</div>-->
 </div>
