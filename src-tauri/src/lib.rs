@@ -1,4 +1,4 @@
-use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
+use chrono::{DateTime, Local, NaiveDate, NaiveDateTime};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize, Serializer};
 
@@ -44,8 +44,8 @@ pub fn run() {
 #[serde(try_from = "TogglEntryRaw")]
 struct TimeSheetEntry {
     description: String,
-    start_time: DateTime<Utc>,
-    end_time: Option<DateTime<Utc>>,
+    start_time: DateTime<Local>,
+    end_time: Option<DateTime<Local>>,
     // duration: Duration,
     tags: Vec<String>,
 }
@@ -78,13 +78,15 @@ impl TryFrom<TogglEntryRaw> for TimeSheetEntry {
             DATE_FORMAT,
         )
         .unwrap() //TODO Use ?
-        .and_utc();
+        .and_local_timezone(Local)
+        .unwrap();
         let end_time = NaiveDateTime::parse_from_str(
             &format!("{} {}", value.end_date, value.end_time),
             DATE_FORMAT,
         )
         .unwrap()
-        .and_utc();
+        .and_local_timezone(Local)
+        .unwrap();
 
         Ok(TimeSheetEntry {
             description: value.description,
