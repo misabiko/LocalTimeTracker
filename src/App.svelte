@@ -2,6 +2,7 @@
     import {invoke} from '@tauri-apps/api/core';
     import {onMount} from "svelte";
 
+    //TODO Figure out an id thing to modify existing entries (need to resolve diff start date, and can't rely just on description)
     let entryMessage = $state('');
 
     type TimeSheetEntry = {
@@ -13,17 +14,17 @@
 
 	let entries: TimeSheetEntry[] | null = $state(null);
 
-    let simpleDate = $state(new Date().toISOString().split('T')[0]);
+    let currentDate = $state(new Date().toISOString().split('T')[0]);
     let fullDate = $derived.by(() => {
-		const [year, month, date] = simpleDate.split('-').map(n => parseInt(n));
+		const [year, month, date] = currentDate.split('-').map(n => parseInt(n));
         return new Date(year, month - 1, date);
     });
 
     $effect(() => {
-        invoke('get_entries', { date: simpleDate })
+        invoke('get_entries', { date: currentDate })
             .then(e => {
                 entries = (e as TimeSheetEntry[]) ?? null;
-                console.log($state.snapshot(simpleDate), $state.snapshot(entries));
+                console.log($state.snapshot(currentDate), $state.snapshot(entries));
             });
 	})
 
@@ -64,13 +65,40 @@
 	}
 
     function incrementDate(delta: number) {
-        const [year, month, date] = simpleDate.split('-').map(n => parseInt(n));
+        const [year, month, date] = currentDate.split('-').map(n => parseInt(n));
         const newDate = new Date(year, month - 1, date + delta);
-		simpleDate = newDate.toISOString().split('T')[0];
+		currentDate = newDate.toISOString().split('T')[0];
+	}
+
+    function setCurrentDate(newDate: Date) {
+        currentDate = newDate.toISOString().split('T')[0];
 	}
 
     const emPerHour = 4;
     const blockMilliToEm = 1 / 1000 / 60 / 60 * emPerHour;
+
+    async function addTestEntry() {
+        const entry = {
+			description: entryMessage,
+			start_time: new Date().toISOString(),
+			end_time: new Date(new Date().getTime() + 1000 * 60 * 60).toISOString(),
+			//TODO Handle string vs array for deserializing
+			tags: 'test',
+		};
+
+        console.log(entry);
+
+        try {
+            const success = await invoke('add_entry', {entry});
+
+            if (!success)
+                throw new Error('Failed to add entry');
+            entries = [...(entries ?? []), entry];
+            entryMessage = '';
+        }catch (e) {
+			console.error(e);
+		}
+	}
 </script>
 
 <style>
@@ -151,11 +179,18 @@
 <!--TODO Padding-->
 <div id='calendar-controls'>
 	<button onclick={() => incrementDate(-1)}>{"<"}</button>
-	<input id='date' type='date' bind:value={simpleDate}/>
+<!--TODO Nice word date for today-->
+<!--TODO Custom input with shortcuts integrated-->
+	<input id='date' type='date' bind:value={currentDate}/>
 	<button onclick={() => incrementDate(1)}>{">"}</button>
+	{#if currentDate !== new Date().toISOString().split('T')[0]}
+		<button onclick={() => setCurrentDate(new Date())}>Today</button>
+	{/if}
+	<button onclick={() => addTestEntry()} disabled={!entryMessage.length}>Add Entry</button>
 </div>
 <div id='calendar'>
 <!--	TODO Format with Intl-->
+<!--	TODO Trim hours and offset blocks for it-->
 	{#each Array(23) as _, i}
 		<div class='timestamp'>{i + 1}:00</div>
 		<div class='entry-row'></div>
