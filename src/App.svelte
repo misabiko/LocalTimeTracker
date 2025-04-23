@@ -2,20 +2,26 @@
 	//TODO Enforce indent to tabs
     import {invoke} from '@tauri-apps/api/core';
     import {onMount} from "svelte";
+    import {SvelteDate} from "svelte/reactivity";
+
+    type TimeSheetEntry = {
+        description: string
+        start_time: SvelteDate
+        end_time: SvelteDate | null
+        tags: string[]
+    }
+
+    let entries: TimeSheetEntry[] | null = $state(null);
 
     let entryMessage = $state('');
     //TODO Get currentEntry from last ongoing entry
 	//TODO Warn multiple ongoing entries
-    let currentEntry: TimeSheetEntry | null = $state(null);
+	let currentEntryIndex: number | null = $state(null);
+    let currentEntry: Readonly<TimeSheetEntry | null> = $derived(currentEntryIndex != null && entries != null ? entries[currentEntryIndex] : null);
 
-    type TimeSheetEntry = {
-        description: string
-		start_time: string
-		end_time: string | null
-		tags: string[]
-	}
-
-	let entries: TimeSheetEntry[] | null = $state(null);
+    let modalEntryIndex: number | null = $state(null);
+    let modalEntry: Readonly<TimeSheetEntry | null> = $derived(modalEntryIndex != null && entries != null ? entries[modalEntryIndex] : null);
+    let modalEntryElement: HTMLDialogElement | null = $state(null);
 
     let currentDate = $state(new Date().toISOString().split('T')[0]);
     let fullDate = $derived.by(() => {
@@ -26,7 +32,11 @@
     $effect(() => {
         invoke('get_entries', { date: currentDate })
             .then(e => {
-                entries = (e as TimeSheetEntry[]) ?? null;
+                entries = (e as TimeSheetEntry[])?.map(e => ({
+                    ...e,
+					start_time: new SvelteDate(e.start_time),
+					end_time: e.end_time ? new SvelteDate(e.end_time) : null,
+				})) ?? null;
                 console.log($state.snapshot(currentDate), $state.snapshot(entries));
             });
 	})
@@ -54,10 +64,9 @@
 	//TODO Week view
 
 	function getEntryDuration(entry: TimeSheetEntry) {
-        const endTime = entry.end_time ? new Date(entry.end_time) : fakeNow;
+        const endTime = entry.end_time ?? fakeNow;
 
-		const start = new Date(entry.start_time);
-        return endTime.getTime() - start.getTime();
+        return endTime.getTime() - entry.start_time.getTime();
 	}
 
     function getDecimalHours(date: Date) {
@@ -85,7 +94,7 @@
 
         currentEntry = {
 			description: entryMessage,
-			start_time: new Date().toISOString(),
+			start_time: new SvelteDate(),
 			end_time: null,
 			tags: [],
         }
@@ -100,7 +109,7 @@
             if (!success)
                 throw new Error('Failed to add entry');
 
-            entries.push($state.snapshot(currentEntry));
+            entries.push(currentEntry);
             entryMessage = '';
         }catch (e) {
             console.error(e);
@@ -112,7 +121,7 @@
 			return;
 
         // const entryHash = getHash(currentEntry);
-        currentEntry.end_time = new Date().toISOString();
+        currentEntry.end_time = new SvelteDate();
 
         try {
 			const success = await invoke('update_entry', {
@@ -132,6 +141,45 @@
     // function getHash(entry: TimeSheetEntry): string {
     //     return entry.description + HashSplitter + entry.start_time;
 	// }
+
+	function setStartDateLocal(entry: TimeSheetEntry, dateTimeLocal: string) {
+        if (!entries)
+            return;
+
+        const [date, time] = dateTimeLocal.split('T');
+        const [year, month, day] = date.split('-').map(n => parseInt(n));
+        const [hour, minute] = time.split(':').map(n => parseInt(n));
+        const startTime = entry.start_time;
+        startTime.setFullYear(year, month - 1, day);
+        startTime.setHours(hour, minute);
+        entry.start_time.setTime(startTime.getTime());
+	}
+
+    function setEndDateLocal(entry: TimeSheetEntry, dateTimeLocal: string) {
+		if (!entries)
+			return;
+
+		const [date, time] = dateTimeLocal.split('T');
+		const [year, month, day] = date.split('-').map(n => parseInt(n));
+		const [hour, minute] = time.split(':').map(n => parseInt(n));
+        if (entry.end_time) {
+            entry.end_time.setFullYear(year, month - 1, day);
+            entry.end_time.setHours(hour, minute);
+        }else {
+            entry.end_time = new SvelteDate(year, month - 1, day, hour, minute);
+		}
+	}
+
+    function showEntryModal(index: number) {
+        if (modalEntryIndex !== null)
+            return;
+        modalEntryIndex = index;
+		modalEntryElement?.showModal();
+	}
+
+    function onEntryModalClose() {
+        modalEntryIndex = null;
+	}
 </script>
 
 <style>
@@ -191,7 +239,9 @@
 		border-bottom: 1px solid #f0f0f0;
 	}
 
+	/*TODO Handle overlapping blocks by offsetting to the side*/
 	.entry-block {
+		/*TODO Try dynamic color via tags and project*/
 		background-color: red;
 		position: absolute;
 		width: calc(100% - 5em - 16px);
@@ -202,6 +252,16 @@
 
 	.entry-block > span {
 		padding: 0 0.5em;
+	}
+
+	#entry-modal {
+		background-color: #555555;
+		color: #f0f0f0;
+		border: none;
+		padding: 1em;
+		width: 300px;
+		/*TODO Center vertically*/
+		top: 100px;
 	}
 </style>
 
@@ -222,6 +282,7 @@
 	{#if currentDate !== new Date().toISOString().split('T')[0]}
 		<button onclick={() => setCurrentDate(new Date())}>Today</button>
 	{/if}
+<!--TODO Total time-->
 </div>
 <div id='calendar'>
 <!--	TODO Format with Intl-->
@@ -231,21 +292,39 @@
 		<div class='entry-row'></div>
 	{/each}
 	{#if entries !== null}
-		{#each entries as entry}
+		{#each entries as entry, i}
+			<!--TODO Thicker hitbox on tiny heights-->
 			<div
 					class='entry-block'
 					style:height={`${getEntryDuration(entry) * blockMilliToEm}em`}
 					style:top={`${getDecimalHours(new Date(entry.start_time)) * emPerHour}em`}
+					onclick={() => showEntryModal(i)}
 			>
 				<span>{entry.description}</span>
 			</div>
 		{/each}
 	{/if}
-<!--	<div-->
-<!--			class='entry-block current-entry'-->
-<!--			style:height={`${getEntryDuration(currentEntry) * blockMilliToEm}em`}-->
-<!--			style:top={`${getDecimalHours(new Date(currentEntry.start_time)) * emPerHour}em`}-->
-<!--	>-->
-<!--		<span>{currentEntry.description}</span>-->
-<!--	</div>-->
 </div>
+
+<dialog id='entry-modal' bind:this={modalEntryElement} onclose={() => onEntryModalClose()}>
+	{#if modalEntry != null}
+	<input type='text' bind:value={modalEntry.description}/>
+	<input type='datetime-local'
+		   bind:value={
+				() => modalEntry.start_time.toISOString().slice(0, 16),
+				v => setStartDateLocal(modalEntry, v)
+		   }
+	/>
+	{#if modalEntry.end_time != null}
+		<input type='datetime-local'
+			   bind:value={
+					() => modalEntry.end_time.toISOString().slice(0, 16),
+					v => setEndDateLocal(modalEntry, v)
+			   }
+		/>
+	{/if}
+	<input type='text' readonly value={modalEntry.tags}/>
+	{/if}
+	<!--TODO Support closing by clicking on backdrop-->
+	<button onclick={() => modalEntryElement?.close()}>Close</button>
+</dialog>
