@@ -99,6 +99,33 @@
 			console.error(e);
 		}
 	}
+
+    async function startNewEntry() {
+        if (!entries)
+            return;
+
+        const entry = {
+			description: entryMessage,
+			start_time: new Date().toISOString(),
+			end_time: null,
+			tags: [],
+        }
+
+        try {
+            const success = await invoke('add_entry', {entry: {
+                ...entry,
+				//TODO Send array to add_entry
+				tags: '',
+			}});
+
+            if (!success)
+                throw new Error('Failed to add entry');
+            entries.push(entry);
+            entryMessage = '';
+        }catch (e) {
+            console.error(e);
+        }
+	}
 </script>
 
 <style>
@@ -175,6 +202,10 @@
 
 <div id='timer-topbar'>
 	<input type='text' bind:value={entryMessage} placeholder='What are you working on?'/>
+<!--TODO Start button adding entry-->
+	<button onclick={() => startNewEntry()} disabled={!entryMessage.length}>Start</button>
+<!--TODO Stop button setting end time-->
+<!--TODO Manual entry mode-->
 </div>
 <!--TODO Padding-->
 <div id='calendar-controls'>
