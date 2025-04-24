@@ -8,9 +8,8 @@
 
     type TimeSheetEntry = {
         description: string
-		//TODO Make a reactive temporal
-        start_time: SvelteDate
-        end_time: SvelteDate | null
+        start_time: number
+        end_time: number | null
 		//TODO Port back to array
         tags: string
     }
@@ -33,12 +32,8 @@
     $effect(() => {
         invoke('get_entries', { date: currentDate.toString() })
             .then(e => {
-                entries = (e as TimeSheetEntry[])?.map(e => ({
-                    ...e,
-					start_time: new SvelteDate(e.start_time),
-					end_time: e.end_time ? new SvelteDate(e.end_time) : null,
-				})) ?? null;
-                // console.log($state.snapshot(currentDate), $state.snapshot(entries));
+                entries = (e as TimeSheetEntry[]) ?? null;
+                console.debug($state.snapshot(currentDate), $state.snapshot(entries));
             });
 	})
 
@@ -54,7 +49,7 @@
 
         await invoke('update_entry', {
             oldDescription: entry.description,
-			oldStartTime: entry.start_time.toISOString(),
+			oldStartTime: entry.start_time,
 			entry: update(entry),
         });
 
@@ -67,7 +62,7 @@
         const entry = entries[index];
         const success = await invoke('delete_entry', {
             description: entry.description,
-			startTime: entry.start_time.toISOString(),
+			startTime: entry.start_time,
 		});
         if (!success)
 			throw new Error('Failed to delete entry');
@@ -98,13 +93,14 @@
 	function getEntryDuration(entry: TimeSheetEntry) {
         const endTime = entry.end_time ?? fakeNow;
 
-        return endTime.getTime() - entry.start_time.getTime();
+        return endTime - entry.start_time;
 	}
 
-    function getDecimalHours(date: Date) {
-		return date.getHours()
-			+ date.getMinutes() / 60
-			+ date.getSeconds() / 3600;
+    function getDecimalHours(epochMs: number): number {
+        const plainDate = Temporal.Instant.fromEpochMilliseconds(epochMs)
+			.toZonedDateTimeISO(Temporal.Now.timeZoneId()).startOfDay();
+        const ms = epochMs - plainDate.epochMilliseconds;
+		return ms / 1000 / 60 / 60;
 	}
 
     const emPerHour = 4;
@@ -116,7 +112,7 @@
 
         currentEntry = {
 			description: entryMessage,
-			start_time: new SvelteDate(),
+			start_time: new Date().getTime(),
 			end_time: null,
 			tags: '',
         }
@@ -145,7 +141,7 @@
 		await updateEntry(currentEntryIndex, entry => {
 			return {
 				...entry,
-				end_time: new SvelteDate(),
+				end_time: new Date().getTime(),
 			}
 		});
 
@@ -161,7 +157,7 @@
 
         await updateEntry(index, entry => {
             const newTime = dt.toZonedDateTime(timeZone).epochMilliseconds;
-            entry.start_time.setTime(newTime);
+            entry.start_time = newTime;
 
             return entry;
 		})
@@ -175,10 +171,7 @@
         const ms = dt.toZonedDateTime(timeZone).epochMilliseconds;
 
         await updateEntry(index, entry => {
-            if (entry.end_time) {
-                entry.end_time.setTime(ms);
-            }else
-                entry.end_time = new SvelteDate(ms);
+			entry.end_time = ms;
 
             return entry;
         });
@@ -197,6 +190,13 @@
     function onEntryModalClose() {
         modalEntryIndex = null;
 	}
+
+    function epochMsToDateTimeLocal(epochMs: number): string {
+        const zoned = Temporal.Instant.fromEpochMilliseconds(epochMs)
+            .toZonedDateTimeISO(Temporal.Now.timeZoneId());
+        const plainDT = zoned.toPlainDateTime();
+        return plainDT.toString();
+    }
 </script>
 
 <style>
@@ -323,7 +323,7 @@
 					class='entry-block'
 					class:from-toggl={entry.tags.includes('Toggl')}
 					style:height={`${getEntryDuration(entry) * blockMilliToEm}em`}
-					style:top={`${getDecimalHours(new Date(entry.start_time)) * emPerHour}em`}
+					style:top={`${getDecimalHours(entry.start_time) * emPerHour}em`}
 					onclick={() => showEntryModal(i)}
 					role='button'
 			>
@@ -344,17 +344,13 @@
 			})}
 		/>
 		<input type='datetime-local'
-			   value={modalEntry.start_time.toISOString().slice(0, 16)}
+			   value={epochMsToDateTimeLocal(modalEntry.start_time)}
 			   oninput={e => setStartDateLocal(modalEntryIndex, e.target.value)}
-			   onchange={e => setStartDateLocal(modalEntryIndex, e.target.value)}
-			   onblur={e => setStartDateLocal(modalEntryIndex, e.target.value)}
 		/>
 		{#if modalEntry.end_time != null}
 			<input type='datetime-local'
-				value={modalEntry.end_time.toISOString().slice(0, 16)}
+				value={epochMsToDateTimeLocal(modalEntry.end_time)}
 				oninput={e => setEndDateLocal(modalEntryIndex, e.target.value)}
-				onchange={e => setEndDateLocal(modalEntryIndex, e.target.value)}
-			   onblur={e => setEndDateLocal(modalEntryIndex, e.target.value)}
 			/>
 		{/if}
 		<input
@@ -364,14 +360,14 @@
 			bind:value={
 				() => {
 					const endTime = modalEntry.end_time ?? fakeNow;
-					const value = (endTime.getTime() - modalEntry.start_time.getTime()) / 1000 / 60 / 60;
+					const value = (endTime - modalEntry.start_time) / 1000 / 60 / 60;
                     return value;
 				},
 				v => updateEntry(modalEntryIndex, entry => {
 					const newEndTime = Temporal.Instant
-						.fromEpochMilliseconds(entry.start_time.getTime())
+						.fromEpochMilliseconds(entry.start_time)
 						.add({nanoseconds: Math.floor(v * 3600e9)});
-					entry.end_time!.setTime(newEndTime.epochMilliseconds);
+					entry.end_time = newEndTime.epochMilliseconds;
 					return entry;
 				})
 			}
@@ -387,7 +383,7 @@
 		/>
 		{#if modalEntry.end_time == null}
 			<button onclick={() => updateEntry(modalEntryIndex, entry => {
-				entry.end_time = new SvelteDate();
+				entry.end_time = new Date().getTime();
 				return entry;
 			})}>Stop</button>
 		{/if}

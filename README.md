@@ -1,8 +1,8 @@
 - TODO Manual entry
 - TODO Save to file
 - TODO Import toggl timesheet into main timesheet
+  - We can do that manually in script
 - TODO package.json → deno.jsonc
-- TODO Remap times
 - TODO Integrate with jira
   - TODO Link to task
   - TODO Test jira API

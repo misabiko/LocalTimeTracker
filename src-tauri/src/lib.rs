@@ -70,7 +70,7 @@ fn add_entry(entry: TimeSheetEntryRaw) -> bool {
 }
 
 #[tauri::command]
-fn update_entry(old_description: String, old_start_time: String, entry: TimeSheetEntryRaw) -> bool {
+fn update_entry(old_description: String, old_start_time: i64, entry: TimeSheetEntryRaw) -> bool {
     let timesheet_path = std::env::var("TIMESHEET_PATH").unwrap();
     let mut existing_entries = match csv::Reader::from_path(&timesheet_path)
     {
@@ -83,7 +83,7 @@ fn update_entry(old_description: String, old_start_time: String, entry: TimeShee
     };
 
     let entry: TimeSheetEntry = entry.try_into().unwrap();
-    let old_start_time = parse_frontend_date(&old_start_time).unwrap();
+    let old_start_time = DateTime::from_timestamp_millis(old_start_time).unwrap();
     let index = existing_entries.iter().position(|e|
         old_description == e.description && old_start_time == e.start_time
     ).expect("Entry not found");
@@ -101,7 +101,7 @@ fn update_entry(old_description: String, old_start_time: String, entry: TimeShee
 }
 
 #[tauri::command]
-fn delete_entry(description: String, start_time: String) -> bool {
+fn delete_entry(description: String, start_time: i64) -> bool {
     let timesheet_path = std::env::var("TIMESHEET_PATH").unwrap();
     let existing_entries = match csv::Reader::from_path(&timesheet_path)
     {
@@ -113,7 +113,7 @@ fn delete_entry(description: String, start_time: String) -> bool {
         Err(_) => vec![],
     };
 
-    let start_time = parse_frontend_date(&start_time).unwrap();
+    let start_time = DateTime::from_timestamp_millis(start_time).unwrap();
     let existing_entries: Vec<TimeSheetEntry> = existing_entries.into_iter()
         .filter(|e| e.description != description || e.start_time != start_time)
         .collect();
@@ -176,8 +176,8 @@ struct TogglEntryRaw {
 #[derive(Debug, Deserialize)]
 struct TimeSheetEntryRaw {
     description: String,
-    start_time: String,
-    end_time: Option<String>,
+    start_time: i64,
+    end_time: Option<i64>,
     // duration: Duration,
     tags: String,
 }
@@ -211,21 +211,19 @@ impl TryFrom<TogglEntryRaw> for TimeSheetEntry {
     }
 }
 
-fn parse_frontend_date(value: &str) -> chrono::ParseResult<DateTime<Local>> {
-    DateTime::parse_from_rfc3339(&value)
-        .map(|dt| dt.with_timezone(&Local))
-}
-
 impl TryFrom<TimeSheetEntryRaw> for TimeSheetEntry {
     type Error = &'static str;
 
     fn try_from(value: TimeSheetEntryRaw) -> Result<Self, Self::Error> {
-        let start_time = parse_frontend_date(&value.start_time)
-            .unwrap(); //TODO Use ?
+        let start_time = DateTime::from_timestamp_millis(value.start_time)
+            .unwrap() //TODO Use ?
+            .with_timezone(&Local);
         let end_time = value
             .end_time
             .map(|et| {
-                parse_frontend_date(&et).unwrap() //TODO Use ?
+                DateTime::from_timestamp_millis(et)
+                    .unwrap() //TODO Use ?
+                    .with_timezone(&Local)
             });
 
         Ok(TimeSheetEntry {
@@ -244,9 +242,8 @@ impl Serialize for TimeSheetEntry {
     {
         let mut state = serializer.serialize_struct("TimeSheetEntry", 5)?;
         state.serialize_field("description", &self.description)?;
-        //rfc3339 should be same as Date.prototype.toISOString()
-        state.serialize_field("start_time", &self.start_time.to_rfc3339())?;
-        state.serialize_field("end_time", &self.end_time.map(|dt| dt.to_rfc3339()))?;
+        state.serialize_field("start_time", &self.start_time.timestamp_millis())?;
+        state.serialize_field("end_time", &self.end_time.map(|dt| dt.timestamp_millis()))?;
         state.serialize_field("tags", &self.tags.join(","))?;
         state.end()
     }
@@ -268,7 +265,7 @@ mod tests {
         dotenvy::dotenv().ok();
         let entry = TimeSheetEntryRaw {
             description: "Test Entry".to_string(),
-            start_time: Local::now().to_rfc3339(),
+            start_time: Local::now().timestamp_millis(),
             end_time: None,
             tags: "test".to_string(),
         };
