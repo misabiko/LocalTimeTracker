@@ -133,8 +133,10 @@
     let blockMilliToEm = $derived(1 / 1000 / 60 / 60 * emPerHour);
 
     async function startNewEntry() {
-        if (!entries || currentEntry != null)
+        if (!entries || currentEntry != null) {
+            console.warn("Can't start entry", entries, currentEntry);
             return;
+        }
 
         currentEntry = {
 			description: entryMessage,
@@ -161,8 +163,10 @@
 	}
 
     async function stopCurrentEntry() {
-        if (currentEntryIndex === null)
-			return;
+        if (currentEntryIndex === null) {
+            console.warn("No current entry to stop");
+            return;
+        }
 
 		await updateEntry(currentEntryIndex, entry => {
 			return {
@@ -317,6 +321,8 @@
 </style>
 
 <div id='timer-topbar'>
+<!--TODO Suggest previous descriptions, and copy tags-->
+<!--TODO Todoist style tags entry-->
 	<input type='text' bind:value={entryMessage} placeholder='What are you working on?'/>
 	<button onclick={() => startNewEntry()} disabled={!entryMessage.length}>Start</button>
 	<button onclick={() => stopCurrentEntry()} disabled={!currentEntry}>Stop</button>
