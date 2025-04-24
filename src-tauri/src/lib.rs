@@ -99,11 +99,6 @@ fn update_entry(entry: TimeSheetEntryRaw) -> bool {
     true
 }
 
-//TODO Handle as hash trait
-// fn get_hash(entry: &TimeSheetEntryRaw) -> String {
-//     format!("{}♢{}", entry.description, entry.start_time)
-// }
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     dotenvy::dotenv().unwrap();

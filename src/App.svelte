@@ -11,7 +11,8 @@
         tags: string[]
     }
 
-    let entries: TimeSheetEntry[] | null = $state(null);
+    //TODO Make deeply readonly
+    let entries: Readonly<TimeSheetEntry>[] | null = $state(null);
 
     let entryMessage = $state('');
     //TODO Get currentEntry from last ongoing entry
@@ -24,10 +25,6 @@
     let modalEntryElement: HTMLDialogElement | null = $state(null);
 
     let currentDate = $state(new Date().toISOString().split('T')[0]);
-    let fullDate = $derived.by(() => {
-		const [year, month, date] = currentDate.split('-').map(n => parseInt(n));
-        return new Date(year, month - 1, date);
-    });
 
     $effect(() => {
         invoke('get_entries', { date: currentDate })
@@ -41,13 +38,19 @@
             });
 	})
 
+	async function updateEntry(index: number, update: (entry: TimeSheetEntry) => TimeSheetEntry) {
+        if (!entries)
+            return;
 
-    // let currentEntry: TimeSheetEntry = {
-	// 	description: 'Test entry',
-	// 	start_time: new Date(2025, 4, 2, 10, 30).toISOString(),
-	// 	end_time: null,
-	// 	tags: []
-	// };
+        const entry = entries[index];
+        if (!entry)
+            return;
+
+        await invoke('update_entry', { entry: update(entry) });
+
+        entries[index] = entry;
+    }
+
     let fakeNow = $state(new Date());
     onMount(() => {requestAnimationFrame(updateFakeNow);})
 
@@ -117,57 +120,53 @@
 	}
 
     async function stopCurrentEntry() {
-        if (!currentEntry)
+        if (currentEntryIndex === null)
 			return;
 
-        // const entryHash = getHash(currentEntry);
-        currentEntry.end_time = new SvelteDate();
-
-        try {
-			const success = await invoke('update_entry', {
-                entry: {
-                    ...$state.snapshot(currentEntry),
-                    tags: currentEntry.tags.join(','),
-                }
-            });
-        }catch (e) {
-			console.error(e);
-		}
+		await updateEntry(currentEntryIndex, entry => {
+			return {
+				...entry,
+				end_time: new SvelteDate(),
+			}
+		});
 
         currentEntry = null;
 	}
 
-    // const HashSplitter = '♢';
-    // function getHash(entry: TimeSheetEntry): string {
-    //     return entry.description + HashSplitter + entry.start_time;
-	// }
-
-	function setStartDateLocal(entry: TimeSheetEntry, dateTimeLocal: string) {
+	async function setStartDateLocal(index: number, dateTimeLocal: string) {
         if (!entries)
             return;
 
         const [date, time] = dateTimeLocal.split('T');
         const [year, month, day] = date.split('-').map(n => parseInt(n));
         const [hour, minute] = time.split(':').map(n => parseInt(n));
-        const startTime = entry.start_time;
-        startTime.setFullYear(year, month - 1, day);
-        startTime.setHours(hour, minute);
-        entry.start_time.setTime(startTime.getTime());
+
+        return updateEntry(index, entry => {
+            const startTime = entry.start_time;
+            startTime.setFullYear(year, month - 1, day);
+            startTime.setHours(hour, minute);
+            entry.start_time.setTime(startTime.getTime());
+
+            return entry;
+		})
 	}
 
-    function setEndDateLocal(entry: TimeSheetEntry, dateTimeLocal: string) {
+    async function setEndDateLocal(index: number, dateTimeLocal: string) {
 		if (!entries)
 			return;
+        const [date, time] = dateTimeLocal.split('T');
+        const [year, month, day] = date.split('-').map(n => parseInt(n));
+        const [hour, minute] = time.split(':').map(n => parseInt(n));
 
-		const [date, time] = dateTimeLocal.split('T');
-		const [year, month, day] = date.split('-').map(n => parseInt(n));
-		const [hour, minute] = time.split(':').map(n => parseInt(n));
-        if (entry.end_time) {
-            entry.end_time.setFullYear(year, month - 1, day);
-            entry.end_time.setHours(hour, minute);
-        }else {
-            entry.end_time = new SvelteDate(year, month - 1, day, hour, minute);
-		}
+        return updateEntry(index, entry => {
+            if (entry.end_time) {
+                entry.end_time.setFullYear(year, month - 1, day);
+                entry.end_time.setHours(hour, minute);
+            }else
+                entry.end_time = new SvelteDate(year, month - 1, day, hour, minute);
+
+            return entry;
+        });
 	}
 
     function showEntryModal(index: number) {
@@ -319,8 +318,11 @@
 </div>
 
 <dialog id='entry-modal' bind:this={modalEntryElement} onclose={() => onEntryModalClose()}>
-	{#if modalEntry != null}
-	<input type='text' bind:value={modalEntry.description}/>
+	{#if modalEntryIndex != null && modalEntry != null}
+	<input
+			type='text'
+			bind:value={() => modalEntry.description, v => updateEntry(modalEntryIndex, e => e.description = v)}
+	/>
 	<input type='datetime-local'
 		   bind:value={
 				() => modalEntry.start_time.toISOString().slice(0, 16),
@@ -338,18 +340,18 @@
 	<input
 		type='number'
 		readonly={!modalEntry.end_time}
+		step={1 / 60}
 		bind:value={
 			() => {
                 const endTime = modalEntry.end_time ?? fakeNow;
 				return (endTime.getTime() - modalEntry.start_time.getTime()) / 1000 / 60 / 60;
 			},
-			v => {
-				if (!modalEntry.end_time)
-					return;
-				const newEndTime = new Date(modalEntry.start_time);
+			v => updateEntry(modalEntryIndex, entry => {
+				const newEndTime = new Date(entry.start_time);
 				newEndTime.setHours(newEndTime.getHours() + v);
-				modalEntry.end_time.setTime(newEndTime.getTime());
-			}
+				entry.end_time!.setTime(newEndTime.getTime());
+				return entry;
+			})
 		}
 	/>
 	<input type='text' readonly value={modalEntry.tags}/>
