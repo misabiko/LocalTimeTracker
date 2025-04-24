@@ -8,7 +8,8 @@
         description: string
         start_time: SvelteDate
         end_time: SvelteDate | null
-        tags: string[]
+		//TODO Port back to array
+        tags: string
     }
 
     //TODO Make deeply readonly
@@ -122,7 +123,7 @@
 			description: entryMessage,
 			start_time: new SvelteDate(),
 			end_time: null,
-			tags: [],
+			tags: '',
         }
 
         try {
@@ -381,7 +382,21 @@
 				})
 			}
 		/>
-		<input type='text' readonly value={modalEntry.tags}/>
+		<input
+				type='text'
+				value={modalEntry.tags}
+				onchange={e => updateEntry(modalEntryIndex, entry => {
+					// entry.tags = (e.target as HTMLInputElement).value.split(',');
+					entry.tags = (e.target as HTMLInputElement).value;
+					return entry;
+				})}
+		/>
+		{#if modalEntry.end_time == null}
+			<button onclick={() => updateEntry(modalEntryIndex, entry => {
+				entry.end_time = new SvelteDate();
+				return entry;
+			})}>Stop</button>
+		{/if}
 		<button onclick={() => deleteEntry(modalEntryIndex)}>Delete</button>
 	{/if}
 	<!--TODO Support closing by clicking on backdrop-->
