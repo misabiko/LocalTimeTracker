@@ -19,7 +19,7 @@
     //TODO Get currentEntry from last ongoing entry
 	//TODO Warn multiple ongoing entries
 	let currentEntryIndex: number | null = $state(null);
-    let currentEntry: Readonly<TimeSheetEntry | null> = $derived(currentEntryIndex != null && entries != null ? entries[currentEntryIndex] : null);
+    const currentEntry: Readonly<TimeSheetEntry | null> = $derived(currentEntryIndex != null && entries != null ? entries[currentEntryIndex] : null);
 
     let modalEntryIndex: number | null = $state(null);
     let modalEntry: Readonly<TimeSheetEntry | null> = $derived(modalEntryIndex != null && entries != null ? entries[modalEntryIndex] : null);
@@ -133,29 +133,32 @@
     let blockMilliToEm = $derived(1 / 1000 / 60 / 60 * emPerHour);
 
     async function startNewEntry() {
-        if (!entries || currentEntry != null) {
-            console.warn("Can't start entry", entries, currentEntry);
+        if (!entries) {
+            console.warn("entries is null");
             return;
         }
 
-        currentEntry = {
+        if (currentEntryIndex != null) {
+			console.warn("Already have an entry");
+			// return;
+			currentEntryIndex = null;
+		}
+
+        const entry: TimeSheetEntry = {
 			description: entryMessage,
 			start_time: new Date().getTime(),
 			end_time: null,
 			tags: '',
-        }
+        };
 
         try {
-            const success = await invoke('add_entry', {entry: {
-                ...$state.snapshot(currentEntry),
-				//TODO Send array to add_entry
-				tags: '',
-			}});
+            const success = await invoke('add_entry', {entry});
 
             if (!success)
                 throw new Error('Failed to add entry');
 
-            entries.push(currentEntry);
+            entries.push(entry);
+            currentEntryIndex = entries.length - 1;
             entryMessage = '';
         }catch (e) {
             console.error(e);
@@ -175,7 +178,7 @@
 			}
 		});
 
-        currentEntry = null;
+        currentEntryIndex = null;
 	}
 
 	async function setStartDateLocal(index: number, dateTimeLocal: string) {
@@ -325,7 +328,7 @@
 <!--TODO Todoist style tags entry-->
 	<input type='text' bind:value={entryMessage} placeholder='What are you working on?'/>
 	<button onclick={() => startNewEntry()} disabled={!entryMessage.length}>Start</button>
-	<button onclick={() => stopCurrentEntry()} disabled={!currentEntry}>Stop</button>
+	<button onclick={() => stopCurrentEntry()} disabled={currentEntryIndex == null}>Stop</button>
 <!--TODO Manual entry mode-->
 </div>
 <!--TODO Padding-->
