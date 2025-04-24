@@ -3,9 +3,12 @@
     import {invoke} from '@tauri-apps/api/core';
     import {onMount} from "svelte";
     import {SvelteDate} from "svelte/reactivity";
+    import { Temporal, toTemporalInstant } from '@js-temporal/polyfill';
+    Date.prototype.toTemporalInstant = toTemporalInstant;
 
     type TimeSheetEntry = {
         description: string
+		//TODO Make a reactive temporal
         start_time: SvelteDate
         end_time: SvelteDate | null
 		//TODO Port back to array
@@ -25,17 +28,17 @@
     let modalEntry: Readonly<TimeSheetEntry | null> = $derived(modalEntryIndex != null && entries != null ? entries[modalEntryIndex] : null);
     let modalEntryElement: HTMLDialogElement | null = $state(null);
 
-    let currentDate = $state(new Date().toISOString().split('T')[0]);
+    let currentDate = $state(Temporal.Now.plainDateISO());
 
     $effect(() => {
-        invoke('get_entries', { date: currentDate })
+        invoke('get_entries', { date: currentDate.toString() })
             .then(e => {
                 entries = (e as TimeSheetEntry[])?.map(e => ({
                     ...e,
 					start_time: new SvelteDate(e.start_time),
 					end_time: e.end_time ? new SvelteDate(e.end_time) : null,
 				})) ?? null;
-                console.log($state.snapshot(currentDate), $state.snapshot(entries));
+                // console.log($state.snapshot(currentDate), $state.snapshot(entries));
             });
 	})
 
@@ -100,16 +103,6 @@
 		return date.getHours()
 			+ date.getMinutes() / 60
 			+ date.getSeconds() / 3600;
-	}
-
-    function incrementDate(delta: number) {
-        const [year, month, date] = currentDate.split('-').map(n => parseInt(n));
-        const newDate = new Date(year, month - 1, date + delta);
-		currentDate = newDate.toISOString().split('T')[0];
-	}
-
-    function setCurrentDate(newDate: Date) {
-        currentDate = newDate.toISOString().split('T')[0];
 	}
 
     const emPerHour = 4;
@@ -296,7 +289,6 @@
 	}
 </style>
 
-
 <div id='timer-topbar'>
 	<input type='text' bind:value={entryMessage} placeholder='What are you working on?'/>
 	<button onclick={() => startNewEntry()} disabled={!entryMessage.length}>Start</button>
@@ -305,13 +297,15 @@
 </div>
 <!--TODO Padding-->
 <div id='calendar-controls'>
-	<button onclick={() => incrementDate(-1)}>{"<"}</button>
+	<button onclick={() => currentDate = currentDate.add({days: -1})}>{"<"}</button>
 <!--TODO Nice word date for today-->
 <!--TODO Custom input with shortcuts integrated-->
-	<input id='date' type='date' bind:value={currentDate}/>
-	<button onclick={() => incrementDate(1)}>{">"}</button>
-	{#if currentDate !== new Date().toISOString().split('T')[0]}
-		<button onclick={() => setCurrentDate(new Date())}>Today</button>
+	<input id='date' type='date' value={currentDate} onchange={e => {
+        currentDate = Temporal.PlainDate.from(e.target.value);
+	}}/>
+	<button onclick={() => currentDate = currentDate.add({days: 1})}>{">"}</button>
+	{#if !currentDate.equals(Temporal.Now.plainDateISO())}
+		<button onclick={() => currentDate = Temporal.Now.plainDateISO()}>Today</button>
 	{/if}
 <!--TODO Total time-->
 </div>
@@ -368,16 +362,18 @@
 		<input
 			type='number'
 			readonly={!modalEntry.end_time}
-			step={1 / 60}
+			step='0.01'
 			bind:value={
 				() => {
 					const endTime = modalEntry.end_time ?? fakeNow;
-					return (endTime.getTime() - modalEntry.start_time.getTime()) / 1000 / 60 / 60;
+					const value = (endTime.getTime() - modalEntry.start_time.getTime()) / 1000 / 60 / 60;
+                    return value;
 				},
 				v => updateEntry(modalEntryIndex, entry => {
-					const newEndTime = new Date(entry.start_time);
-					newEndTime.setHours(newEndTime.getHours() + v);
-					entry.end_time!.setTime(newEndTime.getTime());
+					const newEndTime = Temporal.Instant
+						.fromEpochMilliseconds(entry.start_time.getTime())
+						.add({nanoseconds: Math.floor(v * 3600e9)});
+					entry.end_time!.setTime(newEndTime.epochMilliseconds);
 					return entry;
 				})
 			}
