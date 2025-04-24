@@ -27,7 +27,10 @@
     let modalEntry: Readonly<TimeSheetEntry | null> = $derived(modalEntryIndex != null && entries != null ? entries[modalEntryIndex] : null);
     let modalEntryElement: HTMLDialogElement | null = $state(null);
 
+    //TODO Persist changes
     let currentDate = $state(Temporal.Now.plainDateISO());
+    let firstViewHour = $state(6);
+    let lastViewHour = $state(20);
 
     $effect(() => {
         invoke('get_entries', { date: currentDate.toString() })
@@ -197,6 +200,11 @@
         const plainDT = zoned.toPlainDateTime();
         return plainDT.toString();
     }
+
+    function getEntryBlockTop(entry: TimeSheetEntry): string {
+        const hours = getDecimalHours(entry.start_time) - firstViewHour;
+        return `${hours * emPerHour}em`;
+	}
 </script>
 
 <style>
@@ -305,6 +313,8 @@
 	{#if !currentDate.equals(Temporal.Now.plainDateISO())}
 		<button onclick={() => currentDate = Temporal.Now.plainDateISO()}>Today</button>
 	{/if}
+	<input type='number' step='1' min='0' max={lastViewHour} bind:value={firstViewHour}/>
+	<input type='number' step='1' min={firstViewHour + 1} max='23' bind:value={lastViewHour}/>
 <!--TODO Total time-->
 </div>
 <div id='calendar'>
@@ -312,8 +322,8 @@
 <!--TODO Trim hours and offset blocks for it-->
 <!--TODO Show marker at current time-->
 <!--TODO	Start scrolled to marker-->
-	{#each Array(23) as _, i}
-		<div class='timestamp'>{i + 1}:00</div>
+	{#each Array(lastViewHour - firstViewHour) as _, i}
+		<div class='timestamp'>{i + 1 + firstViewHour}:00</div>
 		<div class='entry-row'></div>
 	{/each}
 	{#if entries !== null}
@@ -323,7 +333,7 @@
 					class='entry-block'
 					class:from-toggl={entry.tags.includes('Toggl')}
 					style:height={`${getEntryDuration(entry) * blockMilliToEm}em`}
-					style:top={`${getDecimalHours(entry.start_time) * emPerHour}em`}
+					style:top={getEntryBlockTop(entry)}
 					onclick={() => showEntryModal(i)}
 					role='button'
 			>
