@@ -106,8 +106,8 @@
 		return ms / 1000 / 60 / 60;
 	}
 
-    const emPerHour = 4;
-    const blockMilliToEm = 1 / 1000 / 60 / 60 * emPerHour;
+    let emPerHour = $state(4);
+    let blockMilliToEm = $derived(1 / 1000 / 60 / 60 * emPerHour);
 
     async function startNewEntry() {
         if (!entries || currentEntry != null)
@@ -235,8 +235,6 @@
 		flex-shrink: 1;
 
 		grid-template-columns: 5em 1fr;
-		/*TODO Make dynamic with emPerHour*/
-		grid-template-rows: repeat(24, 4em);
 		display: grid;
 
 		background-color: #1b1b1b;
@@ -245,15 +243,7 @@
 		position: relative;
 	}
 
-	/*#time-column {*/
-	/*	width: 100px;*/
-	/*	flex-shrink: 0;*/
-	/*	background-color: #212121;*/
-	/*}*/
-
 	.timestamp {
-	/*	height: 4em;*/
-		padding-top: 3.5em;
 		vertical-align: bottom;
 		margin-right: 4px;
 		text-align: right;
@@ -315,15 +305,16 @@
 	{/if}
 	<input type='number' step='1' min='0' max={lastViewHour} bind:value={firstViewHour}/>
 	<input type='number' step='1' min={firstViewHour + 1} max='23' bind:value={lastViewHour}/>
+	<input type='number' step='0.1' bind:value={emPerHour} title='Em Per Hour'/>
 <!--TODO Total time-->
 </div>
-<div id='calendar'>
+<div id='calendar' style:grid-template-rows={`repeat(${lastViewHour - firstViewHour + 1}, ${emPerHour}em)`}>
 <!--TODO Format with Intl-->
 <!--TODO Trim hours and offset blocks for it-->
 <!--TODO Show marker at current time-->
 <!--TODO	Start scrolled to marker-->
 	{#each Array(lastViewHour - firstViewHour) as _, i}
-		<div class='timestamp'>{i + 1 + firstViewHour}:00</div>
+		<div class='timestamp' style:padding-top={`${emPerHour - 0.5}em`}>{i + 1 + firstViewHour}:00</div>
 		<div class='entry-row'></div>
 	{/each}
 	{#if entries !== null}
