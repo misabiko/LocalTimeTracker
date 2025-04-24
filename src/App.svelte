@@ -340,15 +340,18 @@
 	<span>Total Hours: {totalHoursTodayStr}</span>
 </div>
 <div id='calendar' style:grid-template-rows={`repeat(${lastViewHour - firstViewHour + 1}, ${emPerHour}em)`}>
-<!--TODO Format with Intl-->
-<!--TODO Trim hours and offset blocks for it-->
 	{#each Array(lastViewHour - firstViewHour) as _, i}
-		<div class='timestamp' style:padding-top={`${emPerHour - 0.5}em`}>{i + 1 + firstViewHour}:00</div>
+		<div class='timestamp' style:padding-top={`${emPerHour - 0.5}em`}>
+			{#if i + 1 + firstViewHour > 12}
+				{(i + 1 + firstViewHour) - 12}:00 PM
+			{:else}
+				{i + 1 + firstViewHour}:00 AM
+			{/if}
+		</div>
 		<div class='entry-row'></div>
 	{/each}
 	{#if entries !== null}
 		{#each entries as entry, i}
-			<!--TODO Thicker hitbox on tiny heights-->
 			<div
 					class='entry-block'
 					class:from-toggl={entry.tags.includes('Toggl')}
