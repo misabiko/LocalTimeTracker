@@ -47,8 +47,10 @@
             return;
 
         const entry = entries[index];
-        if (!entry)
+        if (!entry) {
+            console.warn('No entry found at index', index);
             return;
+        }
 
         await invoke('update_entry', {
             oldDescription: entry.description,
@@ -154,15 +156,12 @@
         if (!entries)
             return;
 
-        const [date, time] = dateTimeLocal.split('T');
-        const [year, month, day] = date.split('-').map(n => parseInt(n));
-        const [hour, minute] = time.split(':').map(n => parseInt(n));
+        const dt = Temporal.PlainDateTime.from(dateTimeLocal);
+        const timeZone = Temporal.Now.timeZoneId();
 
-        return updateEntry(index, entry => {
-            const startTime = entry.start_time;
-            startTime.setFullYear(year, month - 1, day);
-            startTime.setHours(hour, minute);
-            entry.start_time.setTime(startTime.getTime());
+        await updateEntry(index, entry => {
+            const newTime = dt.toZonedDateTime(timeZone).epochMilliseconds;
+            entry.start_time.setTime(newTime);
 
             return entry;
 		})
@@ -171,16 +170,15 @@
     async function setEndDateLocal(index: number, dateTimeLocal: string) {
 		if (!entries)
 			return;
-        const [date, time] = dateTimeLocal.split('T');
-        const [year, month, day] = date.split('-').map(n => parseInt(n));
-        const [hour, minute] = time.split(':').map(n => parseInt(n));
+        const dt = Temporal.PlainDateTime.from(dateTimeLocal);
+        const timeZone = Temporal.Now.timeZoneId();
+        const ms = dt.toZonedDateTime(timeZone).epochMilliseconds;
 
-        return updateEntry(index, entry => {
+        await updateEntry(index, entry => {
             if (entry.end_time) {
-                entry.end_time.setFullYear(year, month - 1, day);
-                entry.end_time.setHours(hour, minute);
+                entry.end_time.setTime(ms);
             }else
-                entry.end_time = new SvelteDate(year, month - 1, day, hour, minute);
+                entry.end_time = new SvelteDate(ms);
 
             return entry;
         });
@@ -346,17 +344,17 @@
 			})}
 		/>
 		<input type='datetime-local'
-			   bind:value={
-					() => modalEntry.start_time.toISOString().slice(0, 16),
-					v => setStartDateLocal(modalEntry, v)
-			   }
+			   value={modalEntry.start_time.toISOString().slice(0, 16)}
+			   oninput={e => setStartDateLocal(modalEntryIndex, e.target.value)}
+			   onchange={e => setStartDateLocal(modalEntryIndex, e.target.value)}
+			   onblur={e => setStartDateLocal(modalEntryIndex, e.target.value)}
 		/>
 		{#if modalEntry.end_time != null}
 			<input type='datetime-local'
-				   bind:value={
-						() => modalEntry.end_time.toISOString().slice(0, 16),
-						v => setEndDateLocal(modalEntry, v)
-				   }
+				value={modalEntry.end_time.toISOString().slice(0, 16)}
+				oninput={e => setEndDateLocal(modalEntryIndex, e.target.value)}
+				onchange={e => setEndDateLocal(modalEntryIndex, e.target.value)}
+			   onblur={e => setEndDateLocal(modalEntryIndex, e.target.value)}
 			/>
 		{/if}
 		<input
