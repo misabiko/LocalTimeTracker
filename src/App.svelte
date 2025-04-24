@@ -2,9 +2,7 @@
 	//TODO Enforce indent to tabs
     import {invoke} from '@tauri-apps/api/core';
     import {onMount} from "svelte";
-    import {SvelteDate} from "svelte/reactivity";
-    import { Temporal, toTemporalInstant } from '@js-temporal/polyfill';
-    Date.prototype.toTemporalInstant = toTemporalInstant;
+    import { Temporal } from '@js-temporal/polyfill';
 
     type TimeSheetEntry = {
         description: string
@@ -31,6 +29,21 @@
     let currentDate = $state(Temporal.Now.plainDateISO());
     let firstViewHour = $state(6);
     let lastViewHour = $state(20);
+
+    let totalHoursToday = $derived.by(() => {
+		if (entries === null)
+			return 0;
+
+        //Assuming entries only has today's
+		return entries.reduce((total, entry) => {
+			return total + getEntryDurationHours(entry);
+		}, 0);
+	});
+    const durationFormat = new Intl.DurationFormat('en-CA', { style: 'short' });
+    let totalHoursTodayStr = $derived(durationFormat.format({
+		hours: Math.floor(totalHoursToday),
+		minutes: Math.floor((totalHoursToday % 1) * 60),
+    }));
 
     $effect(() => {
         invoke('get_entries', { date: currentDate.toString() })
@@ -97,11 +110,17 @@
 
 	//TODO Week view
 
-	function getEntryDuration(entry: TimeSheetEntry) {
+	function getEntryDurationMilli(entry: TimeSheetEntry): number {
         const endTime = entry.end_time ?? fakeNow;
 
         return endTime - entry.start_time;
 	}
+
+    function getEntryDurationHours(entry: TimeSheetEntry): number {
+        const endTime = entry.end_time ?? fakeNow;
+        const value = (endTime - entry.start_time) / 1000 / 60 / 60;
+        return value;
+    }
 
     function getDecimalHours(epochMs: number): number {
         const plainDate = Temporal.Instant.fromEpochMilliseconds(epochMs)
@@ -318,7 +337,7 @@
 	<input type='number' step='1' min='0' max={lastViewHour} bind:value={firstViewHour}/>
 	<input type='number' step='1' min={firstViewHour + 1} max='23' bind:value={lastViewHour}/>
 	<input type='number' step='0.1' bind:value={emPerHour} title='Em Per Hour'/>
-<!--TODO Total time-->
+	<span>Total Hours: {totalHoursTodayStr}</span>
 </div>
 <div id='calendar' style:grid-template-rows={`repeat(${lastViewHour - firstViewHour + 1}, ${emPerHour}em)`}>
 <!--TODO Format with Intl-->
@@ -333,7 +352,7 @@
 			<div
 					class='entry-block'
 					class:from-toggl={entry.tags.includes('Toggl')}
-					style:height={`${getEntryDuration(entry) * blockMilliToEm}em`}
+					style:height={`${getEntryDurationMilli(entry) * blockMilliToEm}em`}
 					style:top={getEntryBlockTop(entry)}
 					onclick={() => showEntryModal(i)}
 					role='button'
@@ -374,11 +393,7 @@
 			readonly={!modalEntry.end_time}
 			step='0.01'
 			bind:value={
-				() => {
-					const endTime = modalEntry.end_time ?? fakeNow;
-					const value = (endTime - modalEntry.start_time) / 1000 / 60 / 60;
-                    return value;
-				},
+				() => getEntryDurationHours(modalEntry),
 				v => updateEntry(modalEntryIndex, entry => {
 					const newEndTime = Temporal.Instant
 						.fromEpochMilliseconds(entry.start_time)
