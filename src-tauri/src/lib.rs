@@ -70,7 +70,7 @@ fn add_entry(entry: TimeSheetEntryRaw) -> bool {
 }
 
 #[tauri::command]
-fn update_entry(entry: TimeSheetEntryRaw) -> bool {
+fn update_entry(old_description: String, old_start_time: String, entry: TimeSheetEntryRaw) -> bool {
     let timesheet_path = std::env::var("TIMESHEET_PATH").unwrap();
     let mut existing_entries = match csv::Reader::from_path(&timesheet_path)
     {
@@ -83,8 +83,9 @@ fn update_entry(entry: TimeSheetEntryRaw) -> bool {
     };
 
     let entry: TimeSheetEntry = entry.try_into().unwrap();
+    let old_start_time = parse_frontend_date(&old_start_time).unwrap();
     let index = existing_entries.iter().position(|e|
-        entry.description == e.description && entry.start_time == e.start_time
+        old_description == e.description && old_start_time == e.start_time
     ).expect("Entry not found");
     existing_entries[index] = entry;
 
@@ -92,6 +93,34 @@ fn update_entry(entry: TimeSheetEntryRaw) -> bool {
 
     for entry in existing_entries {
         // let entry: TimeSheetEntry = raw_entry.try_into().unwrap();
+        writer.serialize(entry).unwrap();
+    }
+    writer.flush().unwrap();
+
+    true
+}
+
+#[tauri::command]
+fn delete_entry(description: String, start_time: String) -> bool {
+    let timesheet_path = std::env::var("TIMESHEET_PATH").unwrap();
+    let existing_entries = match csv::Reader::from_path(&timesheet_path)
+    {
+        Ok(mut reader) => reader.deserialize::<TimeSheetEntryRaw>()
+            .into_iter()
+            .map(|e| e.unwrap().try_into().unwrap())
+            .collect::<Vec<TimeSheetEntry>>(),
+        //TODO Pattern match for NotFound specifically and panic otherwise
+        Err(_) => vec![],
+    };
+
+    let start_time = parse_frontend_date(&start_time).unwrap();
+    let existing_entries: Vec<TimeSheetEntry> = existing_entries.into_iter()
+        .filter(|e| e.description != description || e.start_time != start_time)
+        .collect();
+
+    let mut writer = csv::Writer::from_path(&timesheet_path).unwrap();
+
+    for entry in existing_entries {
         writer.serialize(entry).unwrap();
     }
     writer.flush().unwrap();
@@ -109,6 +138,7 @@ pub fn run() {
             get_entries,
             add_entry,
             update_entry,
+            delete_entry,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -181,19 +211,21 @@ impl TryFrom<TogglEntryRaw> for TimeSheetEntry {
     }
 }
 
+fn parse_frontend_date(value: &str) -> chrono::ParseResult<DateTime<Local>> {
+    DateTime::parse_from_rfc3339(&value)
+        .map(|dt| dt.with_timezone(&Local))
+}
+
 impl TryFrom<TimeSheetEntryRaw> for TimeSheetEntry {
     type Error = &'static str;
 
     fn try_from(value: TimeSheetEntryRaw) -> Result<Self, Self::Error> {
-        let start_time = DateTime::parse_from_rfc3339(&value.start_time)
-            .unwrap() //TODO Use ?
-            .with_timezone(&Local);
+        let start_time = parse_frontend_date(&value.start_time)
+            .unwrap(); //TODO Use ?
         let end_time = value
             .end_time
             .map(|et| {
-                DateTime::parse_from_rfc3339(&et)
-                    .unwrap() //TODO Use ?
-                    .with_timezone(&Local)
+                parse_frontend_date(&et).unwrap() //TODO Use ?
             });
 
         Ok(TimeSheetEntry {

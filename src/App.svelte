@@ -46,10 +46,33 @@
         if (!entry)
             return;
 
-        await invoke('update_entry', { entry: update(entry) });
+        await invoke('update_entry', {
+            oldDescription: entry.description,
+			oldStartTime: entry.start_time.toISOString(),
+			entry: update(entry),
+        });
 
         entries[index] = entry;
     }
+
+    async function deleteEntry(index: number) {
+        if (!entries)
+			return;
+        const entry = entries[index];
+        const success = await invoke('delete_entry', {
+            description: entry.description,
+			startTime: entry.start_time.toISOString(),
+		});
+        if (!success)
+			throw new Error('Failed to delete entry');
+        entries?.splice(index, 1);
+        if (currentEntryIndex === index)
+			currentEntryIndex = null;
+        if (modalEntryIndex === index) {
+            modalEntryIndex = null;
+            modalEntryElement?.close();
+        }
+	}
 
     let fakeNow = $state(new Date());
     onMount(() => {requestAnimationFrame(updateFakeNow);})
@@ -319,42 +342,47 @@
 
 <dialog id='entry-modal' bind:this={modalEntryElement} onclose={() => onEntryModalClose()}>
 	{#if modalEntryIndex != null && modalEntry != null}
-	<input
+		<input
 			type='text'
-			bind:value={() => modalEntry.description, v => updateEntry(modalEntryIndex, e => e.description = v)}
-	/>
-	<input type='datetime-local'
-		   bind:value={
-				() => modalEntry.start_time.toISOString().slice(0, 16),
-				v => setStartDateLocal(modalEntry, v)
-		   }
-	/>
-	{#if modalEntry.end_time != null}
+			value={modalEntry.description}
+			onchange={e => updateEntry(modalEntryIndex, entry => {
+				entry.description = (e.target as HTMLInputElement).value;
+				return entry;
+			})}
+		/>
 		<input type='datetime-local'
 			   bind:value={
-					() => modalEntry.end_time.toISOString().slice(0, 16),
-					v => setEndDateLocal(modalEntry, v)
+					() => modalEntry.start_time.toISOString().slice(0, 16),
+					v => setStartDateLocal(modalEntry, v)
 			   }
 		/>
-	{/if}
-	<input
-		type='number'
-		readonly={!modalEntry.end_time}
-		step={1 / 60}
-		bind:value={
-			() => {
-                const endTime = modalEntry.end_time ?? fakeNow;
-				return (endTime.getTime() - modalEntry.start_time.getTime()) / 1000 / 60 / 60;
-			},
-			v => updateEntry(modalEntryIndex, entry => {
-				const newEndTime = new Date(entry.start_time);
-				newEndTime.setHours(newEndTime.getHours() + v);
-				entry.end_time!.setTime(newEndTime.getTime());
-				return entry;
-			})
-		}
-	/>
-	<input type='text' readonly value={modalEntry.tags}/>
+		{#if modalEntry.end_time != null}
+			<input type='datetime-local'
+				   bind:value={
+						() => modalEntry.end_time.toISOString().slice(0, 16),
+						v => setEndDateLocal(modalEntry, v)
+				   }
+			/>
+		{/if}
+		<input
+			type='number'
+			readonly={!modalEntry.end_time}
+			step={1 / 60}
+			bind:value={
+				() => {
+					const endTime = modalEntry.end_time ?? fakeNow;
+					return (endTime.getTime() - modalEntry.start_time.getTime()) / 1000 / 60 / 60;
+				},
+				v => updateEntry(modalEntryIndex, entry => {
+					const newEndTime = new Date(entry.start_time);
+					newEndTime.setHours(newEndTime.getHours() + v);
+					entry.end_time!.setTime(newEndTime.getTime());
+					return entry;
+				})
+			}
+		/>
+		<input type='text' readonly value={modalEntry.tags}/>
+		<button onclick={() => deleteEntry(modalEntryIndex)}>Delete</button>
 	{/if}
 	<!--TODO Support closing by clicking on backdrop-->
 	<button onclick={() => modalEntryElement?.close()}>Close</button>
