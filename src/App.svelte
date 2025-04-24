@@ -79,7 +79,15 @@
 	}
 
     let fakeNow: number = $state(new Date().getTime());
-    onMount(() => {requestAnimationFrame(updateFakeNow);})
+    let currentTimeMarker: HTMLDivElement | null = $state(null);
+    onMount(() => {
+        requestAnimationFrame(updateFakeNow);
+
+        if (currentTimeMarker === null)
+			console.warn('No current time marker found');
+		else
+        	currentTimeMarker.scrollIntoView({block: 'center'});
+    })
 
 	//TODO Disable realtime out of focus
 	function updateFakeNow() {
@@ -315,8 +323,6 @@
 <div id='calendar' style:grid-template-rows={`repeat(${lastViewHour - firstViewHour + 1}, ${emPerHour}em)`}>
 <!--TODO Format with Intl-->
 <!--TODO Trim hours and offset blocks for it-->
-<!--TODO Show marker at current time-->
-<!--TODO	Start scrolled to marker-->
 	{#each Array(lastViewHour - firstViewHour) as _, i}
 		<div class='timestamp' style:padding-top={`${emPerHour - 0.5}em`}>{i + 1 + firstViewHour}:00</div>
 		<div class='entry-row'></div>
@@ -336,9 +342,11 @@
 			</div>
 		{/each}
 	{/if}
-	<div id='current-time-marker' style:top={`${(getDecimalHours(fakeNow) - firstViewHour) * emPerHour}em`}>
-		<!--TODO Use a marker icon-->
-	</div>
+	<div
+		id='current-time-marker'
+		style:top={`${(getDecimalHours(fakeNow) - firstViewHour) * emPerHour}em`}
+		bind:this={currentTimeMarker}
+	></div>
 </div>
 
 <dialog id='entry-modal' bind:this={modalEntryElement} onclose={() => onEntryModalClose()}>
