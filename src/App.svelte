@@ -78,16 +78,12 @@
         }
 	}
 
-    let fakeNow = $state(new Date());
+    let fakeNow: number = $state(new Date().getTime());
     onMount(() => {requestAnimationFrame(updateFakeNow);})
 
 	//TODO Disable realtime out of focus
 	function updateFakeNow() {
-        const fakeNowRaw = new Date();
-        //TODO Clean once we use current date properly
-        // fakeNowRaw.setFullYear(fullDate.getFullYear(), fullDate.getMonth(), fullDate.getDate());
-        // fakeNowRaw.setHours(fakeNowRaw.getHours() - 6);
-        fakeNow = fakeNowRaw;
+        fakeNow = new Date().getTime();
         requestAnimationFrame(updateFakeNow);
 	}
 
@@ -283,6 +279,14 @@
 		/*TODO Center vertically*/
 		top: 100px;
 	}
+
+	#current-time-marker {
+		position: absolute;
+        width: calc(100% - 5em - 16px);
+        margin-left: calc(5em + 8px);
+		height: 1px;
+		background-color: #0064ff;
+	}
 </style>
 
 <div id='timer-topbar'>
@@ -332,6 +336,9 @@
 			</div>
 		{/each}
 	{/if}
+	<div id='current-time-marker' style:top={`${(getDecimalHours(fakeNow) - firstViewHour) * emPerHour}em`}>
+		<!--TODO Use a marker icon-->
+	</div>
 </div>
 
 <dialog id='entry-modal' bind:this={modalEntryElement} onclose={() => onEntryModalClose()}>
