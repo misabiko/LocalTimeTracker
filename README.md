@@ -1,3 +1,8 @@
+hopefully a more nda-friendly local Toggl Track alternative
+
+Deno, Tauri, Svelte
+
+---
 - TODO Manual entry
 - TODO Save to file
 - TODO Import toggl timesheet into main timesheet
