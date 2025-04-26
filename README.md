@@ -23,3 +23,4 @@ Deno, Tauri, Svelte
   - TODO Update ClickUp timesheet with different descriptions
 - TODO Simple backup management
 - TODO Ctrl+Z
+- TODO Rename local_timesheet, probably to local_timetracker or something
