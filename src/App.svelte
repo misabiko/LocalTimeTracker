@@ -72,6 +72,45 @@
         entries[index] = entry;
     }
 
+    async function copyAndStartEntry(index: number) {
+        if (!entries) {
+            console.warn("entries is null");
+            return;
+        }
+        const copiedEntry = entries[index];
+        if (!copiedEntry) {
+			console.warn("No entry found at index", index);
+			return;
+		}
+
+        //TODO temp, should handle multi currentEntry, but no way to distinguish/list them yet
+        if (currentEntryIndex != null) {
+            console.warn("Already have an entry");
+            // return;
+            currentEntryIndex = null;
+        }
+
+        const newEntry: TimeSheetEntry = {
+            ...copiedEntry,
+            start_time: new Date().getTime(),
+            end_time: null,
+        };
+
+        try {
+            const success = await invoke('add_entry', {entry: newEntry});
+
+            if (!success)
+                throw new Error('Failed to add entry');
+
+            entries.push(newEntry);
+            currentEntryIndex = entries.length - 1;
+            entryMessage = '';
+        }catch (e) {
+            console.error(e);
+        }
+
+    }
+
     async function deleteEntry(index: number) {
         if (!entries)
 			return;
@@ -285,6 +324,7 @@
 	}
 
 	/*TODO Handle overlapping blocks by offsetting to the side*/
+	/*TODO Have pointer cursor on block*/
 	.entry-block {
 		/*TODO Try dynamic color via tags and project*/
 		background-color: red;
@@ -430,6 +470,7 @@
 				return entry;
 			})}>Stop</button>
 		{/if}
+		<button onclick={() => copyAndStartEntry(modalEntryIndex)}>Continue</button>
 		<button onclick={() => deleteEntry(modalEntryIndex)}>Delete</button>
 	{/if}
 	<!--TODO Support closing by clicking on backdrop-->

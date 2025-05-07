@@ -34,13 +34,12 @@ Deno, Tauri, Svelte
 - TODO Grey current time marker on diff date
 - TODO Week view
 - TODO Delete confirmation
-- TODO +1 "Continue this entry"
 - TODO +2 "Start from end of this entry"
 - TODO Tag color
-- TODO Fix Stop
+- TODO +1 Fix Stop
 - TODO Autocomplete entry data
 - TODO Tests
-  - TODO Get current entry from given csv
+  - TODO +1 Get current entry from given csv
 - TODO Projects
   - TODO Only count project in total hours
 - TODO Rename get_entries to get_date_entries
