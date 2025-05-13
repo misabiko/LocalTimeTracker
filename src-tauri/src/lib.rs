@@ -6,21 +6,22 @@ use serde::{Deserialize, Serialize, Serializer};
 #[tauri::command]
 fn get_entries(date: &str) -> Vec<TimeSheetEntry> {
     let mut entries: Vec<TimeSheetEntry> = Vec::new();
-    let toggl_sheet_path = std::env::var("TOGGL_SHEET_PATH").unwrap();
-    let mut toggl_rdr = csv::ReaderBuilder::new()
-        .delimiter(b',')
-        .from_path(toggl_sheet_path)
-        .unwrap();
-    entries.extend(toggl_rdr.deserialize::<TogglEntryRaw>()
-        .into_iter()
-        .map(|e| {
-            let mut entry: TimeSheetEntry = e.unwrap().try_into().unwrap();
-            if !entry.tags.iter().any(|t| t == "Toggl") {
-                entry.tags.push("Toggl".to_string());
-            }
-            entry
-        })
-    );
+    if let Ok(toggl_sheet_path) = std::env::var("TOGGL_SHEET_PATH") {
+        let mut toggl_rdr = csv::ReaderBuilder::new()
+            .delimiter(b',')
+            .from_path(toggl_sheet_path)
+            .unwrap();
+        entries.extend(toggl_rdr.deserialize::<TogglEntryRaw>()
+            .into_iter()
+            .map(|e| {
+                let mut entry: TimeSheetEntry = e.unwrap().try_into().unwrap();
+                if !entry.tags.iter().any(|t| t == "Toggl") {
+                    entry.tags.push("Toggl".to_string());
+                }
+                entry
+            })
+        );
+    }
 
     let timesheet_path = std::env::var("TIMESHEET_PATH").unwrap();
     if std::fs::exists(&timesheet_path).unwrap() {
@@ -130,7 +131,7 @@ fn delete_entry(description: String, start_time: i64) -> bool {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    dotenvy::dotenv().unwrap();
+    dotenvy::dotenv().expect(".env file with TIMESHEET_PATH should be in src-tauri");
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())

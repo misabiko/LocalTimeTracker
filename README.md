@@ -24,3 +24,5 @@ Deno, Tauri, Svelte
 - TODO Simple backup management
 - TODO Ctrl+Z
 - TODO Rename local_timesheet, probably to local_timetracker or something
+- TODO Format/lint
+  - tabs
