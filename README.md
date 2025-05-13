@@ -24,5 +24,25 @@ Deno, Tauri, Svelte
 - TODO Simple backup management
 - TODO Ctrl+Z
 - TODO Rename local_timesheet, probably to local_timetracker or something
+- TODO Add rust CLI to get today's time quota
+- TODO Figure out windows notifications, for timer reminders
+- TODO Quotas
+- TODO Proof of concept adding entries from chrome extension (probs via CLI)
+- TODO Show duration on entry blocks
+- TODO Dynamic metadata
+  - TODO Jiras
+- TODO Grey current time marker on diff date
+- TODO Week view
+- TODO Delete confirmation
+- TODO +2 "Start from end of this entry"
+- TODO Tag color
+- TODO +1 Fix Stop
+- TODO Autocomplete entry data
+- TODO Tests
+  - TODO +1 Get current entry from given csv
+- TODO Projects
+  - TODO Only count project in total hours
+- TODO Rename get_entries to get_date_entries
+- TODO Taskbar icon
 - TODO Format/lint
   - tabs
