@@ -1,214 +1,241 @@
 ﻿<script lang='ts'>
 	//TODO Enforce indent to tabs
-    import {invoke} from '@tauri-apps/api/core';
-    import {onMount} from "svelte";
-    import { Temporal } from '@js-temporal/polyfill';
+	import {invoke} from '@tauri-apps/api/core';
+	import {onMount} from "svelte";
+	import { Temporal } from '@js-temporal/polyfill';
 
-    type TimeSheetEntry = {
-        description: string
-        start_time: number
-        end_time: number | null
-		//TODO Port back to array
-        tags: string
-    }
+	type TimeSheetEntry = {
+		description: string
+		start_time: number
+		end_time: number | null
+		//TODO +2 Port back to array
+		tags: string
+		properties: Record<string, string>
+	}
+	type TimeSheetEntryTemplate = Omit<TimeSheetEntry, 'start_time' | 'end_time'>;
 
-    //TODO Make deeply readonly
-    let entries: Readonly<TimeSheetEntry>[] | null = $state(null);
+	//TODO Make deeply readonly
+	let entries: Readonly<TimeSheetEntry>[] | null = $state(null);
 
-    let entryMessage = $state('');
-    //TODO Get currentEntry from last ongoing entry
+	let inputEntry: TimeSheetEntryTemplate = $state({
+		description: '',
+		tags: '',
+		properties: {},
+	});
+	//TODO Get currentEntry from last ongoing entry
 	//TODO Warn multiple ongoing entries
 	let currentEntryIndex: number | null = $state(null);
-    const currentEntry: Readonly<TimeSheetEntry | null> = $derived(currentEntryIndex != null && entries != null ? entries[currentEntryIndex] : null);
+	const currentEntry: Readonly<TimeSheetEntry | null> = $derived(currentEntryIndex != null && entries != null ? entries[currentEntryIndex] : null);
 
-    let modalEntryIndex: number | null = $state(null);
-    let modalEntry: Readonly<TimeSheetEntry | null> = $derived(modalEntryIndex != null && entries != null ? entries[modalEntryIndex] : null);
-    let modalEntryElement: HTMLDialogElement | null = $state(null);
+	let modalEntryIndex: number | null = $state(null);
+	let modalEntry: Readonly<TimeSheetEntry | null> = $derived(modalEntryIndex != null && entries != null ? entries[modalEntryIndex] : null);
+	let modalEntryElement: HTMLDialogElement | null = $state(null);
 
-    //TODO Persist changes
-    let currentDate = $state(Temporal.Now.plainDateISO());
-    let firstViewHour = $state(6);
-    let lastViewHour = $state(20);
+	//TODO Persist changes
+	let currentDate = $state(Temporal.Now.plainDateISO());
+	let firstViewHour = $state(6);
+	let lastViewHour = $state(20);
 
-    let totalHoursToday = $derived.by(() => {
+	let totalHoursToday = $derived.by(() => {
 		if (entries === null)
 			return 0;
 
-        //Assuming entries only has today's
+		//Assuming entries only has today's
 		return entries.reduce((total, entry) => {
 			return total + getEntryDurationHours(entry);
 		}, 0);
 	});
-    const durationFormat = new Intl.DurationFormat('en-CA', { style: 'short' });
-    let totalHoursTodayStr = $derived(durationFormat.format({
+	const durationFormat = new Intl.DurationFormat('en-CA', { style: 'short' });
+	let totalHoursTodayStr = $derived(durationFormat.format({
 		hours: Math.floor(totalHoursToday),
 		minutes: Math.floor((totalHoursToday % 1) * 60),
-    }));
+	}));
+	let endTimeStr = $derived(Intl.DateTimeFormat('en-CA', {
+		hour: '2-digit',
+		minute: '2-digit',
+	}).format(Temporal.Now.instant().add({seconds: Math.round((8 - totalHoursToday) * 60 * 60)}).epochMilliseconds));
 
-    $effect(() => {
-        invoke('get_entries', { date: currentDate.toString() })
-            .then(e => {
-                entries = (e as TimeSheetEntry[]) ?? null;
-                console.debug($state.snapshot(currentDate), $state.snapshot(entries));
-            });
+	let entrySuggestions: TimeSheetEntryTemplate[] = $state([]);
+	let showSuggestions = $state(false);
+
+	$effect(() => {
+		invoke<TimeSheetEntry[]>('get_entries', { date: currentDate.toString() })
+			.then(e => {
+				entries = e as TimeSheetEntry[];
+				console.debug($state.snapshot(currentDate), $state.snapshot(entries));
+			});
+	})
+
+	$effect(() => {
+		if (!inputEntry.description) {
+			entrySuggestions = [];
+			showSuggestions = false;
+			return;
+		}
+		invoke<TimeSheetEntryTemplate[]>('suggest_entry_descriptions', { partial: inputEntry.description })
+			.then(suggestions => {
+				if (Array.isArray(suggestions.tags))
+					suggestions.tags = suggestions.tags.join(',');
+				entrySuggestions = suggestions;
+				showSuggestions = entrySuggestions.length > 0;
+			});
 	})
 
 	async function updateEntry(index: number, update: (entry: TimeSheetEntry) => TimeSheetEntry) {
-        if (!entries)
-            return;
+		if (!entries)
+			return;
 
-        const entry = entries[index];
-        if (!entry) {
-            console.warn('No entry found at index', index);
-            return;
-        }
+		const entry = entries[index];
+		if (!entry) {
+			console.warn('No entry found at index', index);
+			return;
+		}
 
-        await invoke('update_entry', {
-            oldDescription: entry.description,
+		await invoke('update_entry', {
+			oldDescription: entry.description,
 			oldStartTime: entry.start_time,
 			entry: update(entry),
-        });
+		});
 
-        entries[index] = entry;
-    }
+		entries[index] = entry;
+	}
 
-    async function copyAndStartEntry(index: number) {
-        if (!entries) {
-            console.warn("entries is null");
-            return;
-        }
-        const copiedEntry = entries[index];
-        if (!copiedEntry) {
+	async function copyAndStartEntry(index: number) {
+		if (!entries) {
+			console.warn("entries is null");
+			return;
+		}
+		const copiedEntry = entries[index];
+		if (!copiedEntry) {
 			console.warn("No entry found at index", index);
 			return;
 		}
 
-        //TODO temp, should handle multi currentEntry, but no way to distinguish/list them yet
-        if (currentEntryIndex != null) {
-            console.warn("Already have an entry");
-            // return;
-            currentEntryIndex = null;
-        }
-
-        const newEntry: TimeSheetEntry = {
-            ...copiedEntry,
-            start_time: new Date().getTime(),
-            end_time: null,
-        };
-
-        try {
-            const success = await invoke('add_entry', {entry: newEntry});
-
-            if (!success)
-                throw new Error('Failed to add entry');
-
-            entries.push(newEntry);
-            currentEntryIndex = entries.length - 1;
-            entryMessage = '';
-        }catch (e) {
-            console.error(e);
-        }
-
-    }
-
-    async function deleteEntry(index: number) {
-        if (!entries)
-			return;
-        const entry = entries[index];
-        const success = await invoke('delete_entry', {
-            description: entry.description,
-			startTime: entry.start_time,
-		});
-        if (!success)
-			throw new Error('Failed to delete entry');
-        entries?.splice(index, 1);
-        if (currentEntryIndex === index)
-			currentEntryIndex = null;
-        if (modalEntryIndex === index) {
-            modalEntryIndex = null;
-            modalEntryElement?.close();
-        }
-	}
-
-    let fakeNow: number = $state(new Date().getTime());
-    let currentTimeMarker: HTMLDivElement | null = $state(null);
-    onMount(() => {
-        requestAnimationFrame(updateFakeNow);
-
-        if (currentTimeMarker === null)
-			console.warn('No current time marker found');
-		else
-        	currentTimeMarker.scrollIntoView({block: 'center'});
-    })
-
-	//TODO Disable realtime out of focus
-	function updateFakeNow() {
-        fakeNow = new Date().getTime();
-        requestAnimationFrame(updateFakeNow);
-	}
-
-	//TODO Week view
-
-	function getEntryDurationMilli(entry: TimeSheetEntry): number {
-        const endTime = entry.end_time ?? fakeNow;
-
-        return endTime - entry.start_time;
-	}
-
-    function getEntryDurationHours(entry: TimeSheetEntry): number {
-        const endTime = entry.end_time ?? fakeNow;
-        const value = (endTime - entry.start_time) / 1000 / 60 / 60;
-        return value;
-    }
-
-    function getDecimalHours(epochMs: number): number {
-        const plainDate = Temporal.Instant.fromEpochMilliseconds(epochMs)
-			.toZonedDateTimeISO(Temporal.Now.timeZoneId()).startOfDay();
-        const ms = epochMs - plainDate.epochMilliseconds;
-		return ms / 1000 / 60 / 60;
-	}
-
-    let emPerHour = $state(4);
-    let blockMilliToEm = $derived(1 / 1000 / 60 / 60 * emPerHour);
-
-    async function startNewEntry() {
-        if (!entries) {
-            console.warn("entries is null");
-            return;
-        }
-
-        if (currentEntryIndex != null) {
+		//TODO temp, should handle multi currentEntry, but no way to distinguish/list them yet
+		if (currentEntryIndex != null) {
 			console.warn("Already have an entry");
 			// return;
 			currentEntryIndex = null;
 		}
 
-        const entry: TimeSheetEntry = {
-			description: entryMessage,
+		const newEntry: TimeSheetEntry = {
+			...copiedEntry,
 			start_time: new Date().getTime(),
 			end_time: null,
-			tags: '',
-        };
+		};
 
-        try {
-            const success = await invoke('add_entry', {entry});
+		try {
+			const success = await invoke('add_entry', {entry: newEntry});
 
-            if (!success)
-                throw new Error('Failed to add entry');
+			if (!success)
+				throw new Error('Failed to add entry');
 
-            entries.push(entry);
-            currentEntryIndex = entries.length - 1;
-            entryMessage = '';
-        }catch (e) {
-            console.error(e);
-        }
+			entries.push(newEntry);
+			currentEntryIndex = entries.length - 1;
+			inputEntry.description = '';
+		}catch (e) {
+			console.error(e);
+		}
+
 	}
 
-    async function stopCurrentEntry() {
-        if (currentEntryIndex === null) {
-            console.warn("No current entry to stop");
-            return;
-        }
+	async function deleteEntry(index: number) {
+		if (!entries)
+			return;
+		const entry = entries[index];
+		const success = await invoke('delete_entry', {
+			description: entry.description,
+			startTime: entry.start_time,
+		});
+		if (!success)
+			throw new Error('Failed to delete entry');
+		entries?.splice(index, 1);
+		if (currentEntryIndex === index)
+			currentEntryIndex = null;
+		if (modalEntryIndex === index) {
+			modalEntryIndex = null;
+			modalEntryElement?.close();
+		}
+	}
+
+	let fakeNow: number = $state(new Date().getTime());
+	let currentTimeMarker: HTMLDivElement | null = $state(null);
+	onMount(() => {
+		requestAnimationFrame(updateFakeNow);
+
+		if (currentTimeMarker === null)
+			console.warn('No current time marker found');
+		else
+			currentTimeMarker.scrollIntoView({block: 'center'});
+	})
+
+	//TODO Disable realtime out of focus
+	function updateFakeNow() {
+		fakeNow = new Date().getTime();
+		requestAnimationFrame(updateFakeNow);
+	}
+
+	//TODO Week view
+
+	function getEntryDurationMilli(entry: TimeSheetEntry): number {
+		const endTime = entry.end_time ?? fakeNow;
+
+		return endTime - entry.start_time;
+	}
+
+	function getEntryDurationHours(entry: TimeSheetEntry): number {
+		const endTime = entry.end_time ?? fakeNow;
+		const value = (endTime - entry.start_time) / 1000 / 60 / 60;
+		return value;
+	}
+
+	function getDecimalHours(epochMs: number): number {
+		const plainDate = Temporal.Instant.fromEpochMilliseconds(epochMs)
+			.toZonedDateTimeISO(Temporal.Now.timeZoneId()).startOfDay();
+		const ms = epochMs - plainDate.epochMilliseconds;
+		return ms / 1000 / 60 / 60;
+	}
+
+	let emPerHour = $state(4);
+	let blockMilliToEm = $derived(1 / 1000 / 60 / 60 * emPerHour);
+
+	async function startNewEntry() {
+		if (!entries) {
+			console.warn("entries is null");
+			return;
+		}
+
+		if (currentEntryIndex != null) {
+			console.warn("Already have an entry");
+			// return;
+			currentEntryIndex = null;
+		}
+
+		const entry: TimeSheetEntry = {
+			...inputEntry,
+			start_time: new Date().getTime(),
+			end_time: null,
+		};
+
+		try {
+			const success = await invoke('add_entry', {entry});
+
+			if (!success)
+				throw new Error('Failed to add entry');
+
+			entries.push(entry);
+			currentEntryIndex = entries.length - 1;
+			inputEntry.description = '';
+		}catch (e) {
+			console.error(e);
+		}
+	}
+
+	async function stopCurrentEntry() {
+		if (currentEntryIndex === null) {
+			console.warn("No current entry to stop");
+			return;
+		}
 
 		await updateEntry(currentEntryIndex, entry => {
 			return {
@@ -217,62 +244,69 @@
 			}
 		});
 
-        currentEntryIndex = null;
+		currentEntryIndex = null;
 	}
 
 	async function setStartDateLocal(index: number, dateTimeLocal: string) {
-        if (!entries)
-            return;
+		if (!entries)
+			return;
 
-        const dt = Temporal.PlainDateTime.from(dateTimeLocal);
-        const timeZone = Temporal.Now.timeZoneId();
+		const dt = Temporal.PlainDateTime.from(dateTimeLocal);
+		const timeZone = Temporal.Now.timeZoneId();
 
-        await updateEntry(index, entry => {
-            const newTime = dt.toZonedDateTime(timeZone).epochMilliseconds;
-            entry.start_time = newTime;
+		await updateEntry(index, entry => {
+			const newTime = dt.toZonedDateTime(timeZone).epochMilliseconds;
+			entry.start_time = newTime;
 
-            return entry;
+			return entry;
 		})
 	}
 
-    async function setEndDateLocal(index: number, dateTimeLocal: string) {
+	async function setEndDateLocal(index: number, dateTimeLocal: string) {
 		if (!entries)
 			return;
-        const dt = Temporal.PlainDateTime.from(dateTimeLocal);
-        const timeZone = Temporal.Now.timeZoneId();
-        const ms = dt.toZonedDateTime(timeZone).epochMilliseconds;
+		const dt = Temporal.PlainDateTime.from(dateTimeLocal);
+		const timeZone = Temporal.Now.timeZoneId();
+		const ms = dt.toZonedDateTime(timeZone).epochMilliseconds;
 
-        await updateEntry(index, entry => {
+		await updateEntry(index, entry => {
 			entry.end_time = ms;
 
-            return entry;
-        });
+			return entry;
+		});
 	}
 
-    function showEntryModal(index: number) {
-        if (modalEntryIndex !== null)
-            return;
-        //Could replace with 'Import' tag or field
-        if (entries === null || entries[index].tags.includes('Toggl'))
+	function showEntryModal(index: number) {
+		if (modalEntryIndex !== null)
 			return;
-        modalEntryIndex = index;
+		//Could replace with 'Import' tag or field
+		if (entries === null || entries[index].tags.includes('Toggl'))
+			return;
+		modalEntryIndex = index;
 		modalEntryElement?.showModal();
 	}
 
-    function onEntryModalClose() {
-        modalEntryIndex = null;
+	function onEntryModalClose() {
+		modalEntryIndex = null;
 	}
 
-    function epochMsToDateTimeLocal(epochMs: number): string {
-        const zoned = Temporal.Instant.fromEpochMilliseconds(epochMs)
-            .toZonedDateTimeISO(Temporal.Now.timeZoneId());
-        const plainDT = zoned.toPlainDateTime();
-        return plainDT.toString();
-    }
+	function epochMsToDateTimeLocal(epochMs: number): string {
+		const zoned = Temporal.Instant.fromEpochMilliseconds(epochMs)
+			.toZonedDateTimeISO(Temporal.Now.timeZoneId());
+		const plainDT = zoned.toPlainDateTime();
+		return plainDT.toString();
+	}
 
-    function getEntryBlockTop(entry: TimeSheetEntry): string {
-        const hours = getDecimalHours(entry.start_time) - firstViewHour;
-        return `${hours * emPerHour}em`;
+	function getEntryBlockTop(entry: TimeSheetEntry): string {
+		const hours = getDecimalHours(entry.start_time) - firstViewHour;
+		return `${hours * emPerHour}em`;
+	}
+
+	function selectSuggestion(s: TimeSheetEntryTemplate) {
+		if (Array.isArray(s.tags))
+			s.tags = s.tags.join(',');
+		inputEntry = s;
+		showSuggestions = false;
 	}
 </script>
 
@@ -356,20 +390,57 @@
 
 	#current-time-marker {
 		position: absolute;
-        width: calc(100% - 5em - 16px);
-        margin-left: calc(5em + 8px);
+		width: calc(100% - 5em - 16px);
+		margin-left: calc(5em + 8px);
 		height: 1px;
 		background-color: #0064ff;
+	}
+
+	dialog[open] {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+	}
+
+	#timer-topbar ul {
+		position: absolute;
+		left: 0;
+		right: 0;
+		z-index: 10;
+		background: #222;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+		border-radius: 0 0 4px 4px;
+		box-shadow: 0 2px 8px #0008;
+	}
+	#timer-topbar ul li {
+		padding: 0.5em;
+		cursor: pointer;
 	}
 </style>
 
 <div id='timer-topbar'>
-<!--TODO Suggest previous descriptions, and copy tags-->
-<!--TODO Todoist style tags entry-->
-	<input type='text' bind:value={entryMessage} placeholder='What are you working on?'/>
-	<button onclick={() => startNewEntry()} disabled={!entryMessage.length}>Start</button>
+	<!--TODO Suggest previous descriptions, and copy tags-->
+	<!--TODO Todoist style tags entry-->
+	<div style='position:relative;'>
+		<input type='text' bind:value={inputEntry.description} placeholder='What are you working on?'
+			onfocus={() => showSuggestions = entrySuggestions.length > 0}
+			onblur={() => showSuggestions = false}
+		/>
+		{#if showSuggestions}
+			<ul>
+				{#each entrySuggestions as suggestion}
+					<!--TODO Add tags-->
+					<!--TODO Make anchor or button-->
+					<li onmousedown={() => selectSuggestion(suggestion)}>{suggestion.description}</li>
+				{/each}
+			</ul>
+		{/if}
+	</div>
+	<button onclick={() => startNewEntry()} disabled={!inputEntry.description.length}>Start</button>
 	<button onclick={() => stopCurrentEntry()} disabled={currentEntryIndex == null}>Stop</button>
-<!--TODO Manual entry mode-->
+	<!--TODO Manual entry mode-->
 </div>
 <!--TODO Padding-->
 <div id='calendar-controls'>
@@ -377,7 +448,7 @@
 <!--TODO Nice word date for today-->
 <!--TODO Custom input with shortcuts integrated-->
 	<input id='date' type='date' value={currentDate} onchange={e => {
-        currentDate = Temporal.PlainDate.from(e.target.value);
+		currentDate = Temporal.PlainDate.from(e.target.value);
 	}}/>
 	<button onclick={() => currentDate = currentDate.add({days: 1})}>{">"}</button>
 	{#if !currentDate.equals(Temporal.Now.plainDateISO())}
@@ -387,6 +458,7 @@
 	<input type='number' step='1' min={firstViewHour + 1} max='23' bind:value={lastViewHour}/>
 	<input type='number' step='0.1' bind:value={emPerHour} title='Em Per Hour'/>
 	<span>Total Hours: {totalHoursTodayStr}</span>
+	<span>End Time: {endTimeStr}</span>
 </div>
 <div id='calendar' style:grid-template-rows={`repeat(${lastViewHour - firstViewHour + 1}, ${emPerHour}em)`}>
 	{#each Array(lastViewHour - firstViewHour) as _, i}
@@ -464,6 +536,26 @@
 					return entry;
 				})}
 		/>
+
+		<label>
+			Jira
+			<input type='text' value={modalEntry.properties.jira} onchange={e => updateEntry(modalEntryIndex, entry => {
+				entry.properties.jira = (e.target as HTMLInputElement).value;
+				return entry;
+			})}/>
+		</label>
+		{#each Object.entries(modalEntry.properties) as [key, value] (key)}
+			{#if key !== 'jira'}
+				<label>
+					{key}
+					<input type='text' value={value} onchange={e => updateEntry(modalEntryIndex, entry => {
+						entry.properties[key] = (e.target as HTMLInputElement).value;
+						return entry;
+					})}/>
+				</label>
+			{/if}
+		{/each}
+
 		{#if modalEntry.end_time == null}
 			<button onclick={() => updateEntry(modalEntryIndex, entry => {
 				entry.end_time = new Date().getTime();

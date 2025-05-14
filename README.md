@@ -3,24 +3,24 @@ hopefully a more nda-friendly local Toggl Track alternative
 Deno, Tauri, Svelte
 
 ---
-- TODO Set stopped entry as running again
-- TODO Integrate with jira
+- TODO +3 Tag color
+- TODO +2 "Start from end of this entry"
+- TODO +2 Week view
+- TODO +1 Fix Stop
+- TODO +1 Test get current entry from given csv
+- TODO +2 Integrate with jira
   - TODO +1 Link to task
   - TODO Test jira API
   - TODO +1 Update jira time track
   - TODO Diff local logged time with jira time
-- TODO -1 Manual entry
-- TODO -1 Import toggl timesheet into main timesheet
-  - We can do that manually in script
-- TODO package.json → deno.jsonc
-- TODO +2 Show remaining shift time
-  - TODO Deduct average week excess time from week's 40 hours
+- TODO Set stopped entry as running again
+- TODO Deduct average week excess time from week's 40 hours
 - TODO Per day hour graph
 - TODO Per week hour graph
+- TODO -1 Manual entry
+- TODO package.json → deno.jsonc
 - TODO Try accessing (read-only) csv file from Excel
   - TODO Confirm CSV history on OneDrive
-- TODO Include clickup timesheet
-  - TODO Update ClickUp timesheet with different descriptions
 - TODO Simple backup management
 - TODO Ctrl+Z
 - TODO Rename local_timesheet, probably to local_timetracker or something
@@ -30,18 +30,15 @@ Deno, Tauri, Svelte
 - TODO Proof of concept adding entries from chrome extension (probs via CLI)
 - TODO Show duration on entry blocks
 - TODO Dynamic metadata
-  - TODO Jiras
 - TODO Grey current time marker on diff date
 - TODO +1 Week view
 - TODO Delete confirmation
-- TODO +2 "Start from end of this entry"
-- TODO Tag color
-- TODO +1 Fix Stop
-	- TODO Ignore Toggl UI and list running entries under topbar
-- TODO Autocomplete entry data
-- TODO Tests
-  - TODO +1 Get current entry from given csv
 - TODO Projects
   - TODO Only count project in total hours
 - TODO Rename get_entries to get_date_entries
 - TODO Taskbar icon
+- TODO Format/lint
+  - tabs
+  - singlequotes
+- TODO -1 Import toggl timesheet into main timesheet
+  - We can do that manually in script
