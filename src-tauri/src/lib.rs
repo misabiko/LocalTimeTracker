@@ -422,10 +422,7 @@ mod tests {
         assert_eq!(suggestions.len(), 0);
     }
 
-	#[test]
-	fn test_total_jira_time() {
-		dotenvy::dotenv().unwrap();
-
+	fn get_jira_entries() -> HashMap::<String, Vec<TimeSheetEntry>> {
 		let mut entries: Vec<TimeSheetEntry> = vec![];
 		let timesheet_path = std::env::var("TIMESHEET_PATH").unwrap();
 		if std::fs::exists(&timesheet_path).unwrap() {
@@ -451,6 +448,14 @@ mod tests {
 			}
 		}
 
+		jira_map
+	}
+
+	#[test]
+	fn test_total_jira_time() {
+		dotenvy::dotenv().unwrap();
+
+		let jira_map = get_jira_entries();
 		let jira_map = jira_map.into_iter().map(|j| {
 			let mut total_time = 0.0;
 			for entry in j.1.iter() {
@@ -464,6 +469,22 @@ mod tests {
 
 		println!("{jira_map:#?}");
 
-		//TODO Get report of start times and durations per entry per jira
+	}
+
+	#[test]
+	fn test_individual_jira_time() {
+		dotenvy::dotenv().unwrap();
+		let jira_url_prefix = std::env::var("VITE_JIRA_URL_PREFIX").unwrap();
+
+		let jira_map = get_jira_entries();
+		for (jira_id, entries) in jira_map.iter() {
+			println!("{jira_url_prefix}{jira_id}");
+			for entry in entries.iter() {
+				if let Some(end_time) = entry.end_time {
+					let duration = ((end_time.timestamp_millis() - entry.start_time.timestamp_millis()) as f32) / (1000.0 * 60.0 * 60.0);
+					println!("\t{}, Duration: {duration:.2} hours, Entry: {}", entry.start_time.with_timezone(&Local), entry.description);
+				}
+			}
+		}
 	}
 }
