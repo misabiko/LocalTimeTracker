@@ -30,7 +30,6 @@ Deno, Tauri, Svelte
 - TODO Proof of concept adding entries from chrome extension (probs via CLI)
 - TODO Show duration on entry blocks
 - TODO Dynamic metadata
-  - TODO Jiras
 - TODO Grey current time marker on diff date
 - TODO Delete confirmation
 - TODO Projects

@@ -1,3 +1,5 @@
+use std::collections::{HashMap, HashSet};
+
 use chrono::{DateTime, Local, NaiveDate, NaiveDateTime};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize, Serializer};
@@ -35,6 +37,7 @@ fn get_entries(date: &str) -> Vec<TimeSheetEntry> {
         );
     }
 
+	println!("{entries:#?}");
     let date = NaiveDate::parse_from_str(date, "%Y-%m-%d").unwrap();
 
     entries
@@ -129,10 +132,11 @@ fn delete_entry(description: String, start_time: i64) -> bool {
     true
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimeSheetEntryTemplate {
 	description: String,
 	tags: Vec<String>,
+	properties: HashMap<String, String>,
 }
 
 #[tauri::command]
@@ -151,7 +155,7 @@ fn suggest_entry_descriptions(partial: &str) -> Vec<TimeSheetEntryTemplate> {
 	}
 
 	let partial_lower = partial.to_lowercase();
-	let mut seen = std::collections::HashSet::new();
+	let mut seen = HashSet::new();
 	let mut suggestions = Vec::new();
 	for entry in entries.iter().rev() {
 		let desc = entry.description.trim().to_lowercase();
@@ -160,9 +164,11 @@ fn suggest_entry_descriptions(partial: &str) -> Vec<TimeSheetEntryTemplate> {
 			let key = (desc.clone(), tags.clone());
 			if !seen.contains(&key) {
 				seen.insert(key);
+				//TODO TimeSheetEntry::into::<TimeSheetEntryTemplate>()
 				suggestions.push(TimeSheetEntryTemplate {
 					description: entry.description.clone(),
 					tags: entry.tags.clone(),
+					properties: entry.properties.clone(),
 				});
 				if suggestions.len() >= 5 { break; }
 			}
@@ -171,11 +177,22 @@ fn suggest_entry_descriptions(partial: &str) -> Vec<TimeSheetEntryTemplate> {
 	suggestions
 }
 
-fn equivalent_entry(a: &TimeSheetEntry, b: &TimeSheetEntry) -> bool {
-	let desc_eq = a.description.trim() == b.description.trim();
-	let tags_a: std::collections::HashSet<_> = a.tags.iter().map(|s| s.trim()).collect();
-	let tags_b: std::collections::HashSet<_> = b.tags.iter().map(|s| s.trim()).collect();
-	desc_eq && tags_a == tags_b
+fn _equivalent_entry(a: &TimeSheetEntry, b: &TimeSheetEntry) -> bool {
+	if a.description.trim() != b.description.trim() {
+		return false;
+	}
+	if HashSet::<&String>::from_iter(a.tags.iter()) != HashSet::<&String>::from_iter(b.tags.iter()) {
+		return false;
+	}
+	if a.properties.len() != b.properties.len() {
+		return false;
+	}
+	for (k, v) in a.properties.iter() {
+		if b.properties.get(k) != Some(v) {
+			return false;
+		}
+	}
+	true
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -201,9 +218,9 @@ struct TimeSheetEntry {
     description: String,
     start_time: DateTime<Local>,
     end_time: Option<DateTime<Local>>,
-    // duration: Duration,
     //TODO tags Set
     tags: Vec<String>,
+	properties: HashMap<String, String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -229,8 +246,8 @@ struct TimeSheetEntryRaw {
     description: String,
     start_time: i64,
     end_time: Option<i64>,
-    // duration: Duration,
     tags: String,
+	properties: String,
 }
 
 const DATE_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
@@ -258,6 +275,7 @@ impl TryFrom<TogglEntryRaw> for TimeSheetEntry {
             start_time,
             end_time: Some(end_time),
             tags: value.tags.split(',').map(|s| s.to_string()).collect(),
+            properties: HashMap::new(),
         })
     }
 }
@@ -277,15 +295,28 @@ impl TryFrom<TimeSheetEntryRaw> for TimeSheetEntry {
                     .with_timezone(&Local)
             });
 
+        // Parse properties string into HashMap
+        let mut properties = HashMap::new();
+        if !value.properties.trim().is_empty() {
+            for pair in value.properties.split(',') {
+                let mut kv = pair.splitn(2, '=');
+                if let (Some(k), Some(v)) = (kv.next(), kv.next()) {
+                    properties.insert(k.to_string(), v.to_string());
+                }
+            }
+        }
+
         Ok(TimeSheetEntry {
             description: value.description,
             start_time,
             end_time,
             tags: value.tags.split(',').map(|s| s.to_string()).collect(),
+            properties,
         })
     }
 }
 
+//TODO Separate csv and json serialization
 impl Serialize for TimeSheetEntry {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -296,6 +327,12 @@ impl Serialize for TimeSheetEntry {
         state.serialize_field("start_time", &self.start_time.timestamp_millis())?;
         state.serialize_field("end_time", &self.end_time.map(|dt| dt.timestamp_millis()))?;
         state.serialize_field("tags", &self.tags.join(","))?;
+		//csv parser doesn't support HashMap
+		let mut properties = Vec::new();
+		for (k, v) in self.properties.iter() {
+			properties.push(format!("{k}={v}"));
+		}
+		state.serialize_field("properties", &properties.join(","))?;
         state.end()
     }
 }

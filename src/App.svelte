@@ -8,10 +8,13 @@
 		description: string
 		start_time: number
 		end_time: number | null
-		//TODO Port back to array
+		//TODO +2 Port back to array
 		tags: string
+		properties: Record<string, string>
 	}
 	type TimeSheetEntryTemplate = Omit<TimeSheetEntry, 'start_time' | 'end_time'>;
+	//TODO Temp until we separate csv and json serialization
+	type TimeSheetEntryRaw = Omit<TimeSheetEntry, 'properties'> & { properties: string };
 
 	//TODO Make deeply readonly
 	let entries: Readonly<TimeSheetEntry>[] | null = $state(null);
@@ -19,6 +22,7 @@
 	let inputEntry: TimeSheetEntryTemplate = $state({
 		description: '',
 		tags: '',
+		properties: {},
 	});
 	//TODO Get currentEntry from last ongoing entry
 	//TODO Warn multiple ongoing entries
@@ -53,9 +57,18 @@
 	let showSuggestions = $state(false);
 
 	$effect(() => {
-		invoke('get_entries', { date: currentDate.toString() })
+		invoke<TimeSheetEntryRaw[]>('get_entries', { date: currentDate.toString() })
 			.then(e => {
-				entries = (e as TimeSheetEntry[]) ?? null;
+				for (const entry of e) {
+					const properties: Record<string, string> = {};
+					for (const pair of entry.properties.split(',')) {
+						const [key, value] = pair.split('=');
+						properties[key] = value;
+					}
+					(entry as TimeSheetEntry).properties = properties;
+				}
+
+				entries = e as TimeSheetEntry[];
 				console.debug($state.snapshot(currentDate), $state.snapshot(entries));
 			});
 	})
@@ -390,6 +403,12 @@
 		background-color: #0064ff;
 	}
 
+	dialog[open] {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+	}
+
 	#timer-topbar ul {
 		position: absolute;
 		left: 0;
@@ -523,6 +542,26 @@
 					return entry;
 				})}
 		/>
+
+		<label>
+			Jira
+			<input type='text' value={modalEntry.properties.jira} onchange={e => updateEntry(modalEntryIndex, entry => {
+				entry.properties.jira = (e.target as HTMLInputElement).value;
+				return entry;
+			})}/>
+		</label>
+		{#each Object.entries(modalEntry.properties) as [key, value] (key)}
+			{#if key !== 'jira'}
+				<label>
+					{key}
+					<input type='text' value={value} onchange={e => updateEntry(modalEntryIndex, entry => {
+						entry.properties[key] = (e.target as HTMLInputElement).value;
+						return entry;
+					})}/>
+				</label>
+			{/if}
+		{/each}
+
 		{#if modalEntry.end_time == null}
 			<button onclick={() => updateEntry(modalEntryIndex, entry => {
 				entry.end_time = new Date().getTime();
