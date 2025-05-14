@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize, Serializer};
 
 //TODO unwrap to ?
 #[tauri::command]
-fn get_entries(date: &str) -> Vec<TimeSheetEntry> {
+fn get_entries(date: &str) -> Vec<TimeSheetEntryFrontEnd> {
     let mut entries: Vec<TimeSheetEntry> = Vec::new();
     if let Ok(toggl_sheet_path) = std::env::var("TOGGL_SHEET_PATH") {
         let mut toggl_rdr = csv::ReaderBuilder::new()
@@ -37,14 +37,14 @@ fn get_entries(date: &str) -> Vec<TimeSheetEntry> {
         );
     }
 
-	println!("{entries:#?}");
     let date = NaiveDate::parse_from_str(date, "%Y-%m-%d").unwrap();
 
     entries
         .into_iter()
         // .map(|entry| entry.unwrap())
         .filter(|e| e.start_time.date_naive() == date)
-        .collect::<Vec<TimeSheetEntry>>()
+		.map(|e| e.into())
+        .collect::<Vec<TimeSheetEntryFrontEnd>>()
 }
 
 #[tauri::command]
@@ -74,7 +74,7 @@ fn add_entry(entry: TimeSheetEntryFrontEnd) -> bool {
 }
 
 #[tauri::command]
-fn update_entry(old_description: String, old_start_time: i64, entry: TimeSheetEntryRaw) -> bool {
+fn update_entry(old_description: String, old_start_time: i64, entry: TimeSheetEntryFrontEnd) -> bool {
     let timesheet_path = std::env::var("TIMESHEET_PATH").unwrap();
     let mut existing_entries = match csv::Reader::from_path(&timesheet_path)
     {
@@ -250,7 +250,7 @@ struct TimeSheetEntryRaw {
 	properties: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct TimeSheetEntryFrontEnd {
     description: String,
     start_time: i64,
@@ -350,6 +350,18 @@ impl TryFrom<TimeSheetEntryFrontEnd> for TimeSheetEntry {
 			tags: value.tags.split(',').map(|s| s.to_string()).collect(),
 			properties: value.properties,
 		})
+	}
+}
+
+impl From<TimeSheetEntry> for TimeSheetEntryFrontEnd {
+	fn from(entry: TimeSheetEntry) -> Self {
+		Self {
+			description: entry.description,
+			start_time: entry.start_time.timestamp_millis(),
+			end_time: entry.end_time.map(|dt| dt.timestamp_millis()),
+			tags: entry.tags.join(","),
+			properties: entry.properties,
+		}
 	}
 }
 
