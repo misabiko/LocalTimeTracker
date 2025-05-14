@@ -200,7 +200,7 @@ pub fn run() {
     dotenvy::dotenv().expect(".env file with TIMESHEET_PATH should be in src-tauri");
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
+		.plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
             get_entries,
             add_entry,

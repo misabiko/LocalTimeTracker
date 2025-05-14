@@ -9,8 +9,7 @@ Deno, Tauri, Svelte
 - TODO +1 Fix Stop
 - TODO +1 Test get current entry from given csv
 - TODO +2 Integrate with jira
-  - TODO +1 Link to task
-  - TODO Test jira API
+  - TODO +1 Test jira API
   - TODO +1 Update jira time track
   - TODO Diff local logged time with jira time
 - TODO Set stopped entry as running again

@@ -3,6 +3,7 @@
 	import {invoke} from '@tauri-apps/api/core';
 	import {onMount} from "svelte";
 	import { Temporal } from '@js-temporal/polyfill';
+    import {open} from '@tauri-apps/plugin-shell';
 
 	type TimeSheetEntry = {
 		description: string
@@ -546,6 +547,12 @@
 				return entry;
 			})}/>
 		</label>
+		{#if modalEntry.properties.jira?.includes('-')}
+			<a href={import.meta.env.VITE_JIRA_URL_PREFIX + modalEntry.properties.jira} onclick={async (e) => {
+				e.preventDefault();
+				await open(import.meta.env.VITE_JIRA_URL_PREFIX + modalEntry.properties.jira);
+			}}>{modalEntry.properties.jira}</a>
+		{/if}
 		{#each Object.entries(modalEntry.properties) as [key, value] (key)}
 			{#if key !== 'jira'}
 				<label>

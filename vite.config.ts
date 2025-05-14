@@ -22,6 +22,7 @@ export default defineConfig({
     },
     envPrefix: ['VITE_', 'TAURI_ENV_*'],
     root: 'src',
+    envDir: process.cwd(),
     build: {
         outDir: '../dist',
         emptyOutDir: true,
