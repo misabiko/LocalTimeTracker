@@ -421,4 +421,49 @@ mod tests {
         let suggestions = suggest_entry_descriptions("xyz");
         assert_eq!(suggestions.len(), 0);
     }
+
+	#[test]
+	fn test_total_jira_time() {
+		dotenvy::dotenv().unwrap();
+
+		let mut entries: Vec<TimeSheetEntry> = vec![];
+		let timesheet_path = std::env::var("TIMESHEET_PATH").unwrap();
+		if std::fs::exists(&timesheet_path).unwrap() {
+			let mut rdr = csv::ReaderBuilder::new()
+				.delimiter(b',')
+				.from_path(timesheet_path)
+				.unwrap();
+			entries.extend(rdr.deserialize::<TimeSheetEntryRaw>()
+				.into_iter()
+				.map(|e| e.unwrap().try_into().unwrap())
+			);
+		}
+
+		let mut jira_map = HashMap::<String, Vec<TimeSheetEntry>>::new();
+		for entry in entries.into_iter() {
+			if entry.properties.contains_key("jira") {
+				let jira_id = entry.properties.get("jira").unwrap().to_string();
+				if jira_map.contains_key(&jira_id) {
+					jira_map.get_mut(&jira_id).unwrap().push(entry);
+				} else {
+					jira_map.insert(jira_id.clone(), vec![entry]);
+				}
+			}
+		}
+
+		let jira_map = jira_map.into_iter().map(|j| {
+			let mut total_time = 0.0;
+			for entry in j.1.iter() {
+				if let Some(end_time) = entry.end_time {
+					//TODO TimeSheetEntry::duration() -> chrono::Duration
+					total_time += ((end_time.timestamp_millis() - entry.start_time.timestamp_millis()) as f32) / (1000.0 * 60.0 * 60.0);
+				}
+			}
+			(j.0, total_time)
+		}).collect::<HashMap::<String, f32>>();
+
+		println!("{jira_map:#?}");
+
+		//TODO Get report of start times and durations per entry per jira
+	}
 }
