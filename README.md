@@ -3,17 +3,17 @@ hopefully a more nda-friendly local Toggl Track alternative
 Deno, Tauri, Svelte
 
 ---
-- TODO Manual entry
-- TODO Save to file
-- TODO Import toggl timesheet into main timesheet
+- TODO Set stopped entry as running again
+- TODO Integrate with jira
+  - TODO +1 Link to task
+  - TODO Test jira API
+  - TODO +1 Update jira time track
+  - TODO Diff local logged time with jira time
+- TODO -1 Manual entry
+- TODO -1 Import toggl timesheet into main timesheet
   - We can do that manually in script
 - TODO package.json → deno.jsonc
-- TODO Integrate with jira
-  - TODO Link to task
-  - TODO Test jira API
-  - TODO Update jira time track
-  - TODO Diff local logged time with jira time
-- TODO Show remaining shift time
+- TODO +2 Show remaining shift time
   - TODO Deduct average week excess time from week's 40 hours
 - TODO Per day hour graph
 - TODO Per week hour graph
@@ -32,11 +32,12 @@ Deno, Tauri, Svelte
 - TODO Dynamic metadata
   - TODO Jiras
 - TODO Grey current time marker on diff date
-- TODO Week view
+- TODO +1 Week view
 - TODO Delete confirmation
 - TODO +2 "Start from end of this entry"
 - TODO Tag color
 - TODO +1 Fix Stop
+	- TODO Ignore Toggl UI and list running entries under topbar
 - TODO Autocomplete entry data
 - TODO Tests
   - TODO +1 Get current entry from given csv
