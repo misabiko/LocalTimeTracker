@@ -48,7 +48,7 @@ fn get_entries(date: &str) -> Vec<TimeSheetEntry> {
 }
 
 #[tauri::command]
-fn add_entry(entry: TimeSheetEntryRaw) -> bool {
+fn add_entry(entry: TimeSheetEntryFrontEnd) -> bool {
     let timesheet_path = std::env::var("TIMESHEET_PATH").unwrap();
     let existing_entries = match csv::Reader::from_path(&timesheet_path)
     {
@@ -61,8 +61,8 @@ fn add_entry(entry: TimeSheetEntryRaw) -> bool {
     };
     let mut writer = csv::Writer::from_path(&timesheet_path).unwrap();
 
-    for entry in existing_entries {
-        writer.serialize(entry).unwrap();
+    for existing_entry in existing_entries {
+        writer.serialize(existing_entry).unwrap();
     }
     let entry: TimeSheetEntry = entry.try_into().unwrap();
     writer.serialize(entry).unwrap();
@@ -243,11 +243,21 @@ struct TogglEntryRaw {
 
 #[derive(Debug, Deserialize)]
 struct TimeSheetEntryRaw {
+    description: Option<String>,
+    start_time: i64,
+    end_time: Option<i64>,
+    tags: Option<String>,
+	properties: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TimeSheetEntryFrontEnd {
     description: String,
     start_time: i64,
     end_time: Option<i64>,
+	//TODO to array
     tags: String,
-	properties: String,
+	properties: HashMap<String, String>,
 }
 
 const DATE_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
@@ -297,23 +307,50 @@ impl TryFrom<TimeSheetEntryRaw> for TimeSheetEntry {
 
         // Parse properties string into HashMap
         let mut properties = HashMap::new();
-        if !value.properties.trim().is_empty() {
-            for pair in value.properties.split(',') {
-                let mut kv = pair.splitn(2, '=');
-                if let (Some(k), Some(v)) = (kv.next(), kv.next()) {
-                    properties.insert(k.to_string(), v.to_string());
-                }
-            }
-        }
+		if let Some(properties_str) = value.properties {
+			if !properties_str.trim().is_empty() {
+				for pair in properties_str.split(',') {
+					let mut kv = pair.splitn(2, '=');
+					if let (Some(k), Some(v)) = (kv.next(), kv.next()) {
+						properties.insert(k.to_string(), v.to_string());
+					}
+				}
+			}
+		}
 
-        Ok(TimeSheetEntry {
-            description: value.description,
+		Ok(TimeSheetEntry {
+			description: value.description.unwrap_or_default(),
             start_time,
             end_time,
-            tags: value.tags.split(',').map(|s| s.to_string()).collect(),
+            tags: value.tags.unwrap_or_default().split(',').map(|s| s.to_string()).collect(),
             properties,
         })
     }
+}
+
+impl TryFrom<TimeSheetEntryFrontEnd> for TimeSheetEntry {
+	type Error = &'static str;
+
+	fn try_from(value: TimeSheetEntryFrontEnd) -> Result<Self, Self::Error> {
+		let start_time = DateTime::from_timestamp_millis(value.start_time)
+            .unwrap() //TODO Use ?
+            .with_timezone(&Local);
+        let end_time = value
+            .end_time
+            .map(|et| {
+                DateTime::from_timestamp_millis(et)
+                    .unwrap() //TODO Use ?
+                    .with_timezone(&Local)
+            });
+
+		Ok(Self {
+			description: value.description,
+			start_time,
+			end_time,
+			tags: value.tags.split(',').map(|s| s.to_string()).collect(),
+			properties: value.properties,
+		})
+	}
 }
 
 //TODO Separate csv and json serialization

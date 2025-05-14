@@ -3,8 +3,6 @@ hopefully a more nda-friendly local Toggl Track alternative
 Deno, Tauri, Svelte
 
 ---
-- TODO +3 Show remaining shift time
-  - TODO Deduct average week excess time from week's 40 hours
 - TODO +3 Tag color
 - TODO +2 "Start from end of this entry"
 - TODO +2 Week view
@@ -15,6 +13,7 @@ Deno, Tauri, Svelte
   - TODO Test jira API
   - TODO Update jira time track
   - TODO Diff local logged time with jira time
+- TODO Deduct average week excess time from week's 40 hours
 - TODO Per day hour graph
 - TODO Per week hour graph
 - TODO Manual entry

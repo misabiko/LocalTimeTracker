@@ -13,8 +13,6 @@
 		properties: Record<string, string>
 	}
 	type TimeSheetEntryTemplate = Omit<TimeSheetEntry, 'start_time' | 'end_time'>;
-	//TODO Temp until we separate csv and json serialization
-	type TimeSheetEntryRaw = Omit<TimeSheetEntry, 'properties'> & { properties: string };
 
 	//TODO Make deeply readonly
 	let entries: Readonly<TimeSheetEntry>[] | null = $state(null);
@@ -52,22 +50,17 @@
 		hours: Math.floor(totalHoursToday),
 		minutes: Math.floor((totalHoursToday % 1) * 60),
 	}));
+	let endTimeStr = $derived(Intl.DateTimeFormat('en-CA', {
+		hour: '2-digit',
+		minute: '2-digit',
+	}).format(Temporal.Now.instant().add({seconds: Math.round((8 - totalHoursToday) * 60 * 60)}).epochMilliseconds));
 
 	let entrySuggestions: TimeSheetEntryTemplate[] = $state([]);
 	let showSuggestions = $state(false);
 
 	$effect(() => {
-		invoke<TimeSheetEntryRaw[]>('get_entries', { date: currentDate.toString() })
+		invoke<TimeSheetEntry[]>('get_entries', { date: currentDate.toString() })
 			.then(e => {
-				for (const entry of e) {
-					const properties: Record<string, string> = {};
-					for (const pair of entry.properties.split(',')) {
-						const [key, value] = pair.split('=');
-						properties[key] = value;
-					}
-					(entry as TimeSheetEntry).properties = properties;
-				}
-
 				entries = e as TimeSheetEntry[];
 				console.debug($state.snapshot(currentDate), $state.snapshot(entries));
 			});
@@ -465,6 +458,7 @@
 	<input type='number' step='1' min={firstViewHour + 1} max='23' bind:value={lastViewHour}/>
 	<input type='number' step='0.1' bind:value={emPerHour} title='Em Per Hour'/>
 	<span>Total Hours: {totalHoursTodayStr}</span>
+	<span>End Time: {endTimeStr}</span>
 </div>
 <div id='calendar' style:grid-template-rows={`repeat(${lastViewHour - firstViewHour + 1}, ${emPerHour}em)`}>
 	{#each Array(lastViewHour - firstViewHour) as _, i}
