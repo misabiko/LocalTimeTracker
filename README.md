@@ -3,24 +3,24 @@ hopefully a more nda-friendly local Toggl Track alternative
 Deno, Tauri, Svelte
 
 ---
-- TODO Manual entry
-- TODO Save to file
-- TODO Import toggl timesheet into main timesheet
-  - We can do that manually in script
-- TODO package.json → deno.jsonc
-- TODO Integrate with jira
+- TODO +3 Show remaining shift time
+  - TODO Deduct average week excess time from week's 40 hours
+- TODO +3 Tag color
+- TODO +2 "Start from end of this entry"
+- TODO +2 Week view
+- TODO +1 Fix Stop
+- TODO +1 Test get current entry from given csv
+- TODO +2 Integrate with jira
   - TODO Link to task
   - TODO Test jira API
   - TODO Update jira time track
   - TODO Diff local logged time with jira time
-- TODO Show remaining shift time
-  - TODO Deduct average week excess time from week's 40 hours
 - TODO Per day hour graph
 - TODO Per week hour graph
+- TODO Manual entry
+- TODO package.json → deno.jsonc
 - TODO Try accessing (read-only) csv file from Excel
   - TODO Confirm CSV history on OneDrive
-- TODO Include clickup timesheet
-  - TODO Update ClickUp timesheet with different descriptions
 - TODO Simple backup management
 - TODO Ctrl+Z
 - TODO Rename local_timesheet, probably to local_timetracker or something
@@ -32,17 +32,13 @@ Deno, Tauri, Svelte
 - TODO Dynamic metadata
   - TODO Jiras
 - TODO Grey current time marker on diff date
-- TODO Week view
 - TODO Delete confirmation
-- TODO +2 "Start from end of this entry"
-- TODO Tag color
-- TODO +1 Fix Stop
-- TODO Autocomplete entry data
-- TODO Tests
-  - TODO +1 Get current entry from given csv
 - TODO Projects
   - TODO Only count project in total hours
 - TODO Rename get_entries to get_date_entries
 - TODO Taskbar icon
 - TODO Format/lint
   - tabs
+  - singlequotes
+- TODO -1 Import toggl timesheet into main timesheet
+  - We can do that manually in script

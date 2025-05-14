@@ -129,8 +129,14 @@ fn delete_entry(description: String, start_time: i64) -> bool {
     true
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct TimeSheetEntryTemplate {
+	description: String,
+	tags: Vec<String>,
+}
+
 #[tauri::command]
-fn suggest_entry_descriptions(partial: &str) -> Vec<String> {
+fn suggest_entry_descriptions(partial: &str) -> Vec<TimeSheetEntryTemplate> {
 	let mut entries: Vec<TimeSheetEntry> = Vec::new();
 	let timesheet_path = std::env::var("TIMESHEET_PATH").unwrap();
 	if std::fs::exists(&timesheet_path).unwrap() {
@@ -145,16 +151,21 @@ fn suggest_entry_descriptions(partial: &str) -> Vec<String> {
 	}
 
 	let partial_lower = partial.to_lowercase();
-	let mut seen_lower = std::collections::HashSet::new();
+	let mut seen = std::collections::HashSet::new();
 	let mut suggestions = Vec::new();
 	for entry in entries.iter().rev() {
-		let desc = &entry.description;
-		if desc.is_empty() { continue; }
-		let desc_lower = desc.to_lowercase();
-		if (desc_lower.starts_with(&partial_lower) || desc_lower.contains(&partial_lower)) && !seen_lower.contains(&desc_lower) {
-			seen_lower.insert(desc_lower);
-			suggestions.push(desc.clone());
-			if suggestions.len() >= 5 { break; }
+		let desc = entry.description.trim().to_lowercase();
+		let tags: std::collections::BTreeSet<_> = entry.tags.iter().map(|s| s.trim().to_lowercase()).collect();
+		if desc.starts_with(&partial_lower) || desc.contains(&partial_lower) {
+			let key = (desc.clone(), tags.clone());
+			if !seen.contains(&key) {
+				seen.insert(key);
+				suggestions.push(TimeSheetEntryTemplate {
+					description: entry.description.clone(),
+					tags: entry.tags.clone(),
+				});
+				if suggestions.len() >= 5 { break; }
+			}
 		}
 	}
 	suggestions
@@ -303,16 +314,22 @@ mod tests {
 
         // Should match 'work' (case-insensitive, deduped, most recent first)
         let suggestions = suggest_entry_descriptions("work");
-        assert_eq!(suggestions[0], "Work on project");
+        assert_eq!(suggestions[0].description, "Work on project");
+        assert_eq!(suggestions[0].tags, vec!["dev"]);
         assert_eq!(suggestions.len(), 1);
 
         // Should match 'e' (multiple, most recent first, max 5)
         let suggestions = suggest_entry_descriptions("e");
+        let expected = [
+            ("Work on project", vec!["dev"]),
+            ("Meeting", vec!["meeting"]),
+            ("Email", vec!["admin"]),
+            ("Another thing", vec!["misc"]),
+        ];
         assert_eq!(suggestions.len(), 4);
-		for expected in ["Work on project", "Meeting", "Email", "Another thing"] {
-			assert!(suggestions.contains(&expected.to_string()));
-		}
-
+        for (desc, tags) in expected.iter() {
+            assert!(suggestions.iter().any(|s| &s.description == desc && &s.tags == tags));
+        }
 
         // Should match nothing
         let suggestions = suggest_entry_descriptions("xyz");

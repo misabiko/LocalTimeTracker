@@ -11,11 +11,15 @@
 		//TODO Port back to array
 		tags: string
 	}
+	type TimeSheetEntryTemplate = Omit<TimeSheetEntry, 'start_time' | 'end_time'>;
 
 	//TODO Make deeply readonly
 	let entries: Readonly<TimeSheetEntry>[] | null = $state(null);
 
-	let entryMessage = $state('');
+	let inputEntry: TimeSheetEntryTemplate = $state({
+		description: '',
+		tags: '',
+	});
 	//TODO Get currentEntry from last ongoing entry
 	//TODO Warn multiple ongoing entries
 	let currentEntryIndex: number | null = $state(null);
@@ -45,7 +49,7 @@
 		minutes: Math.floor((totalHoursToday % 1) * 60),
 	}));
 
-	let entrySuggestions: string[] = $state([]);
+	let entrySuggestions: TimeSheetEntryTemplate[] = $state([]);
 	let showSuggestions = $state(false);
 
 	$effect(() => {
@@ -57,13 +61,15 @@
 	})
 
 	$effect(() => {
-		if (!entryMessage) {
+		if (!inputEntry.description) {
 			entrySuggestions = [];
 			showSuggestions = false;
 			return;
 		}
-		invoke<string[]>('suggest_entry_descriptions', { partial: entryMessage })
+		invoke<TimeSheetEntryTemplate[]>('suggest_entry_descriptions', { partial: inputEntry.description })
 			.then(suggestions => {
+				if (Array.isArray(suggestions.tags))
+					suggestions.tags = suggestions.tags.join(',');
 				entrySuggestions = suggestions;
 				showSuggestions = entrySuggestions.length > 0;
 			});
@@ -120,7 +126,7 @@
 
 			entries.push(newEntry);
 			currentEntryIndex = entries.length - 1;
-			entryMessage = '';
+			inputEntry.description = '';
 		}catch (e) {
 			console.error(e);
 		}
@@ -200,10 +206,9 @@
 		}
 
 		const entry: TimeSheetEntry = {
-			description: entryMessage,
+			...inputEntry,
 			start_time: new Date().getTime(),
 			end_time: null,
-			tags: '',
 		};
 
 		try {
@@ -214,7 +219,7 @@
 
 			entries.push(entry);
 			currentEntryIndex = entries.length - 1;
-			entryMessage = '';
+			inputEntry.description = '';
 		}catch (e) {
 			console.error(e);
 		}
@@ -291,8 +296,10 @@
 		return `${hours * emPerHour}em`;
 	}
 
-	function selectSuggestion(s: string) {
-		entryMessage = s;
+	function selectSuggestion(s: TimeSheetEntryTemplate) {
+		if (Array.isArray(s.tags))
+			s.tags = s.tags.join(',');
+		inputEntry = s;
 		showSuggestions = false;
 	}
 </script>
@@ -405,19 +412,21 @@
 	<!--TODO Suggest previous descriptions, and copy tags-->
 	<!--TODO Todoist style tags entry-->
 	<div style='position:relative;'>
-		<input type='text' bind:value={entryMessage} placeholder='What are you working on?'
+		<input type='text' bind:value={inputEntry.description} placeholder='What are you working on?'
 			onfocus={() => showSuggestions = entrySuggestions.length > 0}
 			onblur={() => showSuggestions = false}
 		/>
 		{#if showSuggestions}
 			<ul>
 				{#each entrySuggestions as suggestion}
-					<li onmousedown={() => selectSuggestion(suggestion)}>{suggestion}</li>
+					<!--TODO Add tags-->
+					<!--TODO Make anchor or button-->
+					<li onmousedown={() => selectSuggestion(suggestion)}>{suggestion.description}</li>
 				{/each}
 			</ul>
 		{/if}
 	</div>
-	<button onclick={() => startNewEntry()} disabled={!entryMessage.length}>Start</button>
+	<button onclick={() => startNewEntry()} disabled={!inputEntry.description.length}>Start</button>
 	<button onclick={() => stopCurrentEntry()} disabled={currentEntryIndex == null}>Stop</button>
 	<!--TODO Manual entry mode-->
 </div>
