@@ -129,6 +129,44 @@ fn delete_entry(description: String, start_time: i64) -> bool {
     true
 }
 
+#[tauri::command]
+fn suggest_entry_descriptions(partial: &str) -> Vec<String> {
+	let mut entries: Vec<TimeSheetEntry> = Vec::new();
+	let timesheet_path = std::env::var("TIMESHEET_PATH").unwrap();
+	if std::fs::exists(&timesheet_path).unwrap() {
+		let mut rdr = csv::ReaderBuilder::new()
+			.delimiter(b',')
+			.from_path(timesheet_path)
+			.unwrap();
+		entries.extend(rdr.deserialize::<TimeSheetEntryRaw>()
+			.into_iter()
+			.map(|e| e.unwrap().try_into().unwrap())
+		);
+	}
+
+	let partial_lower = partial.to_lowercase();
+	let mut seen_lower = std::collections::HashSet::new();
+	let mut suggestions = Vec::new();
+	for entry in entries.iter().rev() {
+		let desc = &entry.description;
+		if desc.is_empty() { continue; }
+		let desc_lower = desc.to_lowercase();
+		if (desc_lower.starts_with(&partial_lower) || desc_lower.contains(&partial_lower)) && !seen_lower.contains(&desc_lower) {
+			seen_lower.insert(desc_lower);
+			suggestions.push(desc.clone());
+			if suggestions.len() >= 5 { break; }
+		}
+	}
+	suggestions
+}
+
+fn equivalent_entry(a: &TimeSheetEntry, b: &TimeSheetEntry) -> bool {
+	let desc_eq = a.description.trim() == b.description.trim();
+	let tags_a: std::collections::HashSet<_> = a.tags.iter().map(|s| s.trim()).collect();
+	let tags_b: std::collections::HashSet<_> = b.tags.iter().map(|s| s.trim()).collect();
+	desc_eq && tags_a == tags_b
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     dotenvy::dotenv().expect(".env file with TIMESHEET_PATH should be in src-tauri");
@@ -140,6 +178,7 @@ pub fn run() {
             add_entry,
             update_entry,
             delete_entry,
+			suggest_entry_descriptions,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -253,24 +292,30 @@ impl Serialize for TimeSheetEntry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env;
+    use std::path::PathBuf;
 
-    #[tokio::test]
-    async fn test_get_entries() {
-        dotenvy::dotenv().ok();
-        let entries = get_entries("2025-04-02");
-        println!("{:#?}", entries);
-    }
+    #[test]
+    fn test_suggest_entry_descriptions() {
+        let mut file_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        file_path.push("tests/timesheet.csv");
+        env::set_var("TIMESHEET_PATH", &file_path);
 
-    #[tokio::test]
-    async fn test_add_entry() {
-        dotenvy::dotenv().ok();
-        let entry = TimeSheetEntryRaw {
-            description: "Test Entry".to_string(),
-            start_time: Local::now().timestamp_millis(),
-            end_time: None,
-            tags: "test".to_string(),
-        };
-        let result = add_entry(entry);
-        assert!(result);
+        // Should match 'work' (case-insensitive, deduped, most recent first)
+        let suggestions = suggest_entry_descriptions("work");
+        assert_eq!(suggestions[0], "Work on project");
+        assert_eq!(suggestions.len(), 1);
+
+        // Should match 'e' (multiple, most recent first, max 5)
+        let suggestions = suggest_entry_descriptions("e");
+        assert_eq!(suggestions.len(), 4);
+		for expected in ["Work on project", "Meeting", "Email", "Another thing"] {
+			assert!(suggestions.contains(&expected.to_string()));
+		}
+
+
+        // Should match nothing
+        let suggestions = suggest_entry_descriptions("xyz");
+        assert_eq!(suggestions.len(), 0);
     }
 }
