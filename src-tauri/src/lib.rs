@@ -1,3 +1,5 @@
+mod jira;
+
 use std::collections::{HashMap, HashSet};
 
 use chrono::{DateTime, Local, NaiveDate, NaiveDateTime};
@@ -164,11 +166,14 @@ fn suggest_entry_descriptions(partial: &str) -> Vec<TimeSheetEntryTemplate> {
 			let key = (desc.clone(), tags.clone());
 			if !seen.contains(&key) {
 				seen.insert(key);
+				let mut properties = entry.properties.clone();
+				//TODO Distinguish between template properties and instance properties
+				properties.remove("jira_worklog_id");
 				//TODO TimeSheetEntry::into::<TimeSheetEntryTemplate>()
 				suggestions.push(TimeSheetEntryTemplate {
 					description: entry.description.clone(),
 					tags: entry.tags.clone(),
-					properties: entry.properties.clone(),
+					properties,
 				});
 				if suggestions.len() >= 5 { break; }
 			}
@@ -184,14 +189,15 @@ fn _equivalent_entry(a: &TimeSheetEntry, b: &TimeSheetEntry) -> bool {
 	if HashSet::<&String>::from_iter(a.tags.iter()) != HashSet::<&String>::from_iter(b.tags.iter()) {
 		return false;
 	}
-	if a.properties.len() != b.properties.len() {
-		return false;
-	}
-	for (k, v) in a.properties.iter() {
-		if b.properties.get(k) != Some(v) {
-			return false;
-		}
-	}
+	//TODO For now don't consider properties, later distinguish "template properties" from "instance properties" (jira id vs worklog id)
+	// if a.properties.len() != b.properties.len() {
+	// 	return false;
+	// }
+	// for (k, v) in a.properties.iter() {
+	// 	if b.properties.get(k) != Some(v) {
+	// 		return false;
+	// 	}
+	// }
 	true
 }
 
@@ -212,7 +218,7 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(try_from = "TimeSheetEntryRaw")]
 struct TimeSheetEntry {
     description: String,
@@ -421,70 +427,4 @@ mod tests {
         let suggestions = suggest_entry_descriptions("xyz");
         assert_eq!(suggestions.len(), 0);
     }
-
-	fn get_jira_entries() -> HashMap::<String, Vec<TimeSheetEntry>> {
-		let mut entries: Vec<TimeSheetEntry> = vec![];
-		let timesheet_path = std::env::var("TIMESHEET_PATH").unwrap();
-		if std::fs::exists(&timesheet_path).unwrap() {
-			let mut rdr = csv::ReaderBuilder::new()
-				.delimiter(b',')
-				.from_path(timesheet_path)
-				.unwrap();
-			entries.extend(rdr.deserialize::<TimeSheetEntryRaw>()
-				.into_iter()
-				.map(|e| e.unwrap().try_into().unwrap())
-			);
-		}
-
-		let mut jira_map = HashMap::<String, Vec<TimeSheetEntry>>::new();
-		for entry in entries.into_iter() {
-			if entry.properties.contains_key("jira") {
-				let jira_id = entry.properties.get("jira").unwrap().to_string();
-				if jira_map.contains_key(&jira_id) {
-					jira_map.get_mut(&jira_id).unwrap().push(entry);
-				} else {
-					jira_map.insert(jira_id.clone(), vec![entry]);
-				}
-			}
-		}
-
-		jira_map
-	}
-
-	#[test]
-	fn test_total_jira_time() {
-		dotenvy::dotenv().unwrap();
-
-		let jira_map = get_jira_entries();
-		let jira_map = jira_map.into_iter().map(|j| {
-			let mut total_time = 0.0;
-			for entry in j.1.iter() {
-				if let Some(end_time) = entry.end_time {
-					//TODO TimeSheetEntry::duration() -> chrono::Duration
-					total_time += ((end_time.timestamp_millis() - entry.start_time.timestamp_millis()) as f32) / (1000.0 * 60.0 * 60.0);
-				}
-			}
-			(j.0, total_time)
-		}).collect::<HashMap::<String, f32>>();
-
-		println!("{jira_map:#?}");
-
-	}
-
-	#[test]
-	fn test_individual_jira_time() {
-		dotenvy::dotenv().unwrap();
-		let jira_url_prefix = std::env::var("VITE_JIRA_URL_PREFIX").unwrap();
-
-		let jira_map = get_jira_entries();
-		for (jira_id, entries) in jira_map.iter() {
-			println!("{jira_url_prefix}{jira_id}");
-			for entry in entries.iter() {
-				if let Some(end_time) = entry.end_time {
-					let duration = ((end_time.timestamp_millis() - entry.start_time.timestamp_millis()) as f32) / (1000.0 * 60.0 * 60.0);
-					println!("\t{}, Duration: {duration:.2} hours, Entry: {}", entry.start_time.with_timezone(&Local), entry.description);
-				}
-			}
-		}
-	}
 }

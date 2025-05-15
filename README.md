@@ -8,10 +8,7 @@ Deno, Tauri, Svelte
 - TODO +2 Week view
 - TODO +1 Fix Stop
 - TODO +1 Test get current entry from given csv
-- TODO +2 Integrate with jira
-  - TODO +1 Test jira API
-  - TODO +1 Update jira time track
-  - TODO Diff local logged time with jira time
+- TODO Create/update jira worklog from UI
 - TODO Set stopped entry as running again
 - TODO Deduct average week excess time from week's 40 hours
 - TODO Per day hour graph
@@ -32,8 +29,8 @@ Deno, Tauri, Svelte
 - TODO Grey current time marker on diff date
 - TODO +1 Week view
 - TODO Delete confirmation
-- TODO Projects
-  - TODO Only count project in total hours
+- TODO +1 Projects
+  - TODO +1 Only count project in total hours
 - TODO Rename get_entries to get_date_entries
 - TODO Taskbar icon
 - TODO Format/lint
@@ -41,3 +38,4 @@ Deno, Tauri, Svelte
   - singlequotes
 - TODO -1 Import toggl timesheet into main timesheet
   - We can do that manually in script
+- TODO Diff local logged time with jira time

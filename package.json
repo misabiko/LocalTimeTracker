@@ -10,7 +10,8 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "tauri": "tauri",
-    "build": "tauri build -d --no-bundle"
+    "build": "tauri build -d --no-bundle",
+    "scripts": "deno run --allow-read --allow-env --allow-net src/scripts.ts"
   },
   "license": "MIT",
   "dependencies": {

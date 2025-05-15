@@ -429,6 +429,7 @@
 			onfocus={() => showSuggestions = entrySuggestions.length > 0}
 			onblur={() => showSuggestions = false}
 		/>
+		<!--TODO Add inputs for tags and properties-->
 		{#if showSuggestions}
 			<ul>
 				{#each entrySuggestions as suggestion}
@@ -441,7 +442,8 @@
 	</div>
 	<button onclick={() => startNewEntry()} disabled={!inputEntry.description.length}>Start</button>
 	<button onclick={() => stopCurrentEntry()} disabled={currentEntryIndex == null}>Stop</button>
-	<!--TODO Manual entry mode-->
+	<!--TODO List ongoing timers-->
+	<!--TODO Mark one timer as "current timer" to switch from-->
 </div>
 <!--TODO Padding-->
 <div id='calendar-controls'>
@@ -548,9 +550,9 @@
 			})}/>
 		</label>
 		{#if modalEntry.properties.jira?.includes('-')}
-			<a href={import.meta.env.VITE_JIRA_URL_PREFIX + modalEntry.properties.jira} onclick={async (e) => {
+			<a href={import.meta.env.VITE_JIRA_URL_PREFIX + 'browse/' + modalEntry.properties.jira} onclick={async (e) => {
 				e.preventDefault();
-				await open(import.meta.env.VITE_JIRA_URL_PREFIX + modalEntry.properties.jira);
+				await open(import.meta.env.VITE_JIRA_URL_PREFIX + 'browse/' + modalEntry.properties.jira);
 			}}>{modalEntry.properties.jira}</a>
 		{/if}
 		{#each Object.entries(modalEntry.properties) as [key, value] (key)}
