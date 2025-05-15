@@ -551,11 +551,20 @@
 				return entry;
 			})}/>
 		</label>
-		{#if modalEntry.properties.jira?.includes('-')}
-			<a href={import.meta.env.VITE_JIRA_URL_PREFIX + 'browse/' + modalEntry.properties.jira} onclick={async (e) => {
-				e.preventDefault();
-				await open(import.meta.env.VITE_JIRA_URL_PREFIX + 'browse/' + modalEntry.properties.jira);
-			}}>{modalEntry.properties.jira}</a>
+		{#if modalEntry.properties.jira}
+			{#if modalEntry.properties.jira_worklog_id}
+				{@const worklogURL = `${import.meta.env.VITE_JIRA_URL_PREFIX}browse/${modalEntry.properties.jira}?focusedId=${modalEntry.properties.jira_worklog_id}#worklog-${modalEntry.properties.jira_worklog_id}`}
+				<a href={worklogURL} onclick={async (e) => {
+					e.preventDefault();
+					await open(worklogURL);
+				}}>{modalEntry.properties.jira}</a>
+			{:else}
+				{@const jiraURL = `${import.meta.env.VITE_JIRA_URL_PREFIX}browse/${modalEntry.properties.jira}`}
+				<a href={jiraURL} onclick={async (e) => {
+					e.preventDefault();
+					await open(jiraURL);
+				}}>{modalEntry.properties.jira}</a>
+			{/if}
 		{/if}
 		<!--TODO Add properties from UI-->
 		{#each Object.entries(modalEntry.properties) as [key, value] (key)}
