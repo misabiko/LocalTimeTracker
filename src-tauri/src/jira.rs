@@ -24,11 +24,11 @@ async fn create_worklog(entry: &TimeSheetEntry) -> Result<Worklog, ()> {
         r#"{{
         "started": "{}",
         "timeSpentSeconds": {},
+        "comment": "{}"
     }}"#,
-        started, time_spent_seconds
+        started, time_spent_seconds, entry.description
     );
-    //TODO Removing comment for now, but would be nice to have
-    // "comment": "{}"
+    //Requires comment field, but it would be nice to have the description→title separate from describing what we're currently doing
 
     let client = reqwest::Client::new();
     let worklog: Worklog = client
