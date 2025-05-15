@@ -227,6 +227,8 @@
 			entries.push(entry);
 			currentEntryIndex = entries.length - 1;
 			inputEntry.description = '';
+			inputEntry.tags = '';
+			inputEntry.properties = {};
 		}catch (e) {
 			console.error(e);
 		}
@@ -522,7 +524,7 @@
 			readonly={!modalEntry.end_time}
 			step='0.01'
 			bind:value={
-				() => getEntryDurationHours(modalEntry),
+				() => getEntryDurationHours(modalEntry).toFixed(3),
 				v => updateEntry(modalEntryIndex, entry => {
 					const newEndTime = Temporal.Instant
 						.fromEpochMilliseconds(entry.start_time)
@@ -555,6 +557,7 @@
 				await open(import.meta.env.VITE_JIRA_URL_PREFIX + 'browse/' + modalEntry.properties.jira);
 			}}>{modalEntry.properties.jira}</a>
 		{/if}
+		<!--TODO Add properties from UI-->
 		{#each Object.entries(modalEntry.properties) as [key, value] (key)}
 			{#if key !== 'jira'}
 				<label>
