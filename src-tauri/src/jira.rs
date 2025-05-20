@@ -28,7 +28,7 @@ async fn create_worklog(entry: &TimeSheetEntry) -> Result<Worklog, ()> {
     }}"#,
         started, time_spent_seconds, entry.description
     );
-    //Requires comment field, but it would be nice to have the description→title separate from describing what we're currently doing
+    //TODO Requires comment field, but it would be nice to have the description→title separate from describing what we're currently doing
 
     let client = reqwest::Client::new();
     let worklog: Worklog = client

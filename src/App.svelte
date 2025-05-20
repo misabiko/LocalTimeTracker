@@ -327,12 +327,15 @@
 	}
 
 	#timer-topbar {
-		padding: 1.5em;
-		margin-bottom: 1em;
+        padding: 1.5em 1.5em 0;
+        margin-bottom: 1em;
 	}
 
-	#timer-topbar > input {
-		width: 100%;
+	#entry-input {
+		position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
 	}
 
 	#calendar {
@@ -421,17 +424,27 @@
 		padding: 0.5em;
 		cursor: pointer;
 	}
+
+	#time-info {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+	}
 </style>
 
 <div id='timer-topbar'>
-	<!--TODO Suggest previous descriptions, and copy tags-->
 	<!--TODO Todoist style tags entry-->
-	<div style='position:relative;'>
+	<div id='entry-input'>
 		<input type='text' bind:value={inputEntry.description} placeholder='What are you working on?'
 			onfocus={() => showSuggestions = entrySuggestions.length > 0}
 			onblur={() => showSuggestions = false}
 		/>
-		<!--TODO Add inputs for tags and properties-->
+		<!--TODO +1 Add inputs for tags and properties-->
+		<input type='text' bind:value={inputEntry.tags}/>
+		{#if inputEntry.properties.jira}
+			<input type='text' bind:value={inputEntry.properties.jira}/>
+		{/if}
+
 		{#if showSuggestions}
 			<ul>
 				{#each entrySuggestions as suggestion}
@@ -444,28 +457,32 @@
 	</div>
 	<button onclick={() => startNewEntry()} disabled={!inputEntry.description.length}>Start</button>
 	<button onclick={() => stopCurrentEntry()} disabled={currentEntryIndex == null}>Stop</button>
-	<!--TODO List ongoing timers-->
-	<!--TODO Mark one timer as "current timer" to switch from-->
+	<!--TODO +1 List ongoing timers-->
+	<!--TODO +1 Mark one timer as "current timer" to switch from-->
 </div>
 <!--TODO Padding-->
 <div id='calendar-controls'>
-	<button onclick={() => currentDate = currentDate.add({days: -1})}>{"<"}</button>
-<!--TODO Nice word date for today-->
-<!--TODO Custom input with shortcuts integrated-->
-	<input id='date' type='date' value={currentDate} onchange={e => {
-		currentDate = Temporal.PlainDate.from(e.target.value);
-	}}/>
-	<button onclick={() => currentDate = currentDate.add({days: 1})}>{">"}</button>
-	{#if !currentDate.equals(Temporal.Now.plainDateISO())}
-		<button onclick={() => currentDate = Temporal.Now.plainDateISO()}>Today</button>
-	{/if}
-	<input type='number' step='1' min='0' max={lastViewHour} bind:value={firstViewHour}/>
-	<input type='number' step='1' min={firstViewHour + 1} max='23' bind:value={lastViewHour}/>
-	<input type='number' step='0.1' bind:value={emPerHour} title='Em Per Hour'/>
-	<span>Total Hours: {totalHoursTodayStr}</span>
-	{#if currentDate.equals(Temporal.Now.plainDateISO())}
-		<span>End Time: {endTimeStr}</span>
-	{/if}
+	<div>
+		<button onclick={() => currentDate = currentDate.add({days: -1})}>{"<"}</button>
+		<!--TODO Nice word date for today-->
+		<!--TODO Custom input with shortcuts integrated-->
+		<input id='date' type='date' value={currentDate} onchange={e => {
+			currentDate = Temporal.PlainDate.from(e.target.value);
+		}}/>
+		<button onclick={() => currentDate = currentDate.add({days: 1})}>{">"}</button>
+		{#if !currentDate.equals(Temporal.Now.plainDateISO())}
+			<button onclick={() => currentDate = Temporal.Now.plainDateISO()}>Today</button>
+		{/if}
+		<input type='number' step='1' min='0' max={lastViewHour} bind:value={firstViewHour}/>
+		<input type='number' step='1' min={firstViewHour + 1} max='23' bind:value={lastViewHour}/>
+		<input type='number' step='0.1' bind:value={emPerHour} title='Em Per Hour'/>
+	</div>
+	<div id='time-info'>
+		<span>Total Hours: {totalHoursTodayStr}</span>
+		{#if currentDate.equals(Temporal.Now.plainDateISO())}
+			<span>End Time: {endTimeStr}</span>
+		{/if}
+	</div>
 </div>
 <div id='calendar' style:grid-template-rows={`repeat(${lastViewHour - firstViewHour + 1}, ${emPerHour}em)`}>
 	{#each Array(lastViewHour - firstViewHour) as _, i}
