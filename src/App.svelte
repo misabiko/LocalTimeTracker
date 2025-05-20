@@ -125,6 +125,9 @@
 			end_time: null,
 		};
 
+		//TODO Handle template properties vs entry properties
+		delete newEntry.properties.jira_worklog_id;
+
 		try {
 			const success = await invoke('add_entry', {entry: newEntry});
 
