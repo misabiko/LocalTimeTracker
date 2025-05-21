@@ -57,7 +57,7 @@
 	}).format(Temporal.Now.instant().add({seconds: Math.round((8 - totalHoursToday) * 60 * 60)}).epochMilliseconds));
 
 	let entrySuggestions: TimeSheetEntryTemplate[] = $state([]);
-	let showSuggestions = $state(false);
+	let inputFocused = $state(false);
 
 	$effect(() => {
 		invoke<TimeSheetEntry[]>('get_entries', { date: currentDate.toString() })
@@ -70,7 +70,6 @@
 	$effect(() => {
 		if (!inputEntry.description) {
 			entrySuggestions = [];
-			showSuggestions = false;
 			return;
 		}
 		invoke<TimeSheetEntryTemplate[]>('suggest_entry_descriptions', { partial: inputEntry.description })
@@ -78,7 +77,6 @@
 				if (Array.isArray(suggestions.tags))
 					suggestions.tags = suggestions.tags.join(',');
 				entrySuggestions = suggestions;
-				showSuggestions = entrySuggestions.length > 0;
 			});
 	})
 
@@ -312,7 +310,7 @@
 		if (Array.isArray(s.tags))
 			s.tags = s.tags.join(',');
 		inputEntry = s;
-		showSuggestions = false;
+		entrySuggestions = [];
 	}
 </script>
 
@@ -413,6 +411,7 @@
 
 	#timer-topbar ul {
 		position: absolute;
+		top: 4.3em;
 		left: 0;
 		right: 0;
 		z-index: 10;
@@ -439,16 +438,17 @@
 	<!--TODO Todoist style tags entry-->
 	<div id='entry-input'>
 		<input type='text' bind:value={inputEntry.description} placeholder='What are you working on?'
-			onfocus={() => showSuggestions = entrySuggestions.length > 0}
-			onblur={() => showSuggestions = false}
+			onfocus={() => inputFocused = true}
+			onblur={() => inputFocused = false}
 		/>
+
 		<!--TODO +1 Add inputs for tags and properties-->
 		<input type='text' bind:value={inputEntry.tags}/>
 		{#if inputEntry.properties.jira}
 			<input type='text' bind:value={inputEntry.properties.jira}/>
 		{/if}
 
-		{#if showSuggestions}
+		{#if inputFocused && entrySuggestions.length}
 			<ul>
 				{#each entrySuggestions as suggestion}
 					<!--TODO Add tags-->
@@ -587,6 +587,7 @@
 			{/if}
 		{/if}
 		<!--TODO Add properties from UI-->
+		<!--TODO Delete properties from UI-->
 		{#each Object.entries(modalEntry.properties) as [key, value] (key)}
 			{#if key !== 'jira'}
 				<label>
