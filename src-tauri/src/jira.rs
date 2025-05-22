@@ -31,7 +31,7 @@ async fn create_worklog(entry: &TimeSheetEntry) -> Result<Worklog, ()> {
     //TODO Requires comment field, but it would be nice to have the description→title separate from describing what we're currently doing
 
     let client = reqwest::Client::new();
-    let worklog: Worklog = client
+    let worklog_response = client
         .post(&format!(
             "{}rest/api/2/issue/{}/worklog",
             std::env::var("VITE_JIRA_URL_PREFIX").unwrap(),
@@ -53,10 +53,20 @@ async fn create_worklog(entry: &TimeSheetEntry) -> Result<Worklog, ()> {
         .body(body)
         .send()
         .await
-        .unwrap()
-        .json()
-        .await
         .unwrap();
+    
+    let response_str = worklog_response.text().await.unwrap();
+    println!("Response: {response_str}");
+    
+    let worklog = serde_json::from_str::<Worklog>(&response_str);
+
+    let worklog = match worklog {
+        Err(e) => {
+            println!("Error creating worklog: {e}");
+            return Err(());
+        }
+        Ok(w) => w,
+    };
 
     let mut new_entry = entry.clone();
     new_entry
@@ -276,6 +286,10 @@ mod tests {
         //op run --env-file ../.env -- cargo test test_add_missing_worklogs -- --nocapture
 
         for (jira_id, entries) in get_jira_entries() {
+            if jira_id.is_empty() {
+                eprintln!("No jira id found on {entries:#?}");
+                continue
+            }
 			println!("{jira_prefix_url}browse/{jira_id}");
             for entry in entries.iter() {
                 if entry.properties.contains_key("jira_worklog_id") {
