@@ -31,7 +31,6 @@ Deno, Tauri, Svelte
 - TODO Delete confirmation
 - TODO +1 Projects
   - TODO +1 Only count project in total hours
-- TODO Rename get_entries to get_date_entries
 - TODO Taskbar icon
 - TODO Format/lint
   - tabs

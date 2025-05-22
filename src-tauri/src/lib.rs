@@ -2,28 +2,28 @@ mod jira;
 
 use std::collections::{HashMap, HashSet};
 
-use chrono::{DateTime, Local, NaiveDate, NaiveDateTime};
+use chrono::{DateTime, Datelike, Days, Local, NaiveDate, NaiveDateTime};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize, Serializer};
 
-//TODO unwrap to ?
-#[tauri::command]
-fn get_entries(date: &str) -> Vec<TimeSheetEntryFrontEnd> {
+pub fn get_entries() -> Vec<TimeSheetEntry> {
     let mut entries: Vec<TimeSheetEntry> = Vec::new();
     if let Ok(toggl_sheet_path) = std::env::var("TOGGL_SHEET_PATH") {
         let mut toggl_rdr = csv::ReaderBuilder::new()
             .delimiter(b',')
             .from_path(toggl_sheet_path)
             .unwrap();
-        entries.extend(toggl_rdr.deserialize::<TogglEntryRaw>()
-            .into_iter()
-            .map(|e| {
-                let mut entry: TimeSheetEntry = e.unwrap().try_into().unwrap();
-                if !entry.tags.iter().any(|t| t == "Toggl") {
-                    entry.tags.push("Toggl".to_string());
-                }
-                entry
-            })
+        entries.extend(
+            toggl_rdr
+                .deserialize::<TogglEntryRaw>()
+                .into_iter()
+                .map(|e| {
+                    let mut entry: TimeSheetEntry = e.unwrap().try_into().unwrap();
+                    if !entry.tags.iter().any(|t| t == "Toggl") {
+                        entry.tags.push("Toggl".to_string());
+                    }
+                    entry
+                }),
         );
     }
 
@@ -33,11 +33,20 @@ fn get_entries(date: &str) -> Vec<TimeSheetEntryFrontEnd> {
             .delimiter(b',')
             .from_path(timesheet_path)
             .unwrap();
-        entries.extend(rdr.deserialize::<TimeSheetEntryRaw>()
-            .into_iter()
-            .map(|e| e.unwrap().try_into().unwrap())
+        entries.extend(
+            rdr.deserialize::<TimeSheetEntryRaw>()
+                .into_iter()
+                .map(|e| e.unwrap().try_into().unwrap()),
         );
     }
+
+    entries
+}
+
+//TODO unwrap to ?
+#[tauri::command]
+fn get_date_entries(date: &str) -> Vec<TimeSheetEntryFrontEnd> {
+    let entries: Vec<TimeSheetEntry> = get_entries();
 
     let date = NaiveDate::parse_from_str(date, "%Y-%m-%d").unwrap();
 
@@ -45,22 +54,14 @@ fn get_entries(date: &str) -> Vec<TimeSheetEntryFrontEnd> {
         .into_iter()
         // .map(|entry| entry.unwrap())
         .filter(|e| e.start_time.date_naive() == date)
-		.map(|e| e.into())
+        .map(|e| e.into())
         .collect::<Vec<TimeSheetEntryFrontEnd>>()
 }
 
 #[tauri::command]
 fn add_entry(entry: TimeSheetEntryFrontEnd) -> bool {
     let timesheet_path = std::env::var("TIMESHEET_PATH").unwrap();
-    let existing_entries = match csv::Reader::from_path(&timesheet_path)
-    {
-        Ok(mut reader) => reader.deserialize::<TimeSheetEntryRaw>()
-            .into_iter()
-            .map(|e| e.unwrap().try_into().unwrap())
-            .collect::<Vec<TimeSheetEntry>>(),
-        //TODO Pattern match for NotFound specifically and panic otherwise
-        Err(_) => vec![],
-    };
+    let existing_entries = get_entries();
     let mut writer = csv::Writer::from_path(&timesheet_path).unwrap();
 
     for existing_entry in existing_entries {
@@ -76,23 +77,20 @@ fn add_entry(entry: TimeSheetEntryFrontEnd) -> bool {
 }
 
 #[tauri::command]
-fn update_entry(old_description: String, old_start_time: i64, entry: TimeSheetEntryFrontEnd) -> bool {
+fn update_entry(
+    old_description: String,
+    old_start_time: i64,
+    entry: TimeSheetEntryFrontEnd,
+) -> bool {
     let timesheet_path = std::env::var("TIMESHEET_PATH").unwrap();
-    let mut existing_entries = match csv::Reader::from_path(&timesheet_path)
-    {
-        Ok(mut reader) => reader.deserialize::<TimeSheetEntryRaw>()
-            .into_iter()
-            .map(|e| e.unwrap().try_into().unwrap())
-            .collect::<Vec<TimeSheetEntry>>(),
-        //TODO Pattern match for NotFound specifically and panic otherwise
-        Err(_) => vec![],
-    };
+    let mut existing_entries = get_entries();
 
     let entry: TimeSheetEntry = entry.try_into().unwrap();
     let old_start_time = DateTime::from_timestamp_millis(old_start_time).unwrap();
-    let index = existing_entries.iter().position(|e|
-        old_description == e.description && old_start_time == e.start_time
-    ).expect("Entry not found");
+    let index = existing_entries
+        .iter()
+        .position(|e| old_description == e.description && old_start_time == e.start_time)
+        .expect("Entry not found");
     existing_entries[index] = entry;
 
     let mut writer = csv::Writer::from_path(&timesheet_path).unwrap();
@@ -109,9 +107,9 @@ fn update_entry(old_description: String, old_start_time: i64, entry: TimeSheetEn
 #[tauri::command]
 fn delete_entry(description: String, start_time: i64) -> bool {
     let timesheet_path = std::env::var("TIMESHEET_PATH").unwrap();
-    let existing_entries = match csv::Reader::from_path(&timesheet_path)
-    {
-        Ok(mut reader) => reader.deserialize::<TimeSheetEntryRaw>()
+    let existing_entries = match csv::Reader::from_path(&timesheet_path) {
+        Ok(mut reader) => reader
+            .deserialize::<TimeSheetEntryRaw>()
             .into_iter()
             .map(|e| e.unwrap().try_into().unwrap())
             .collect::<Vec<TimeSheetEntry>>(),
@@ -120,7 +118,8 @@ fn delete_entry(description: String, start_time: i64) -> bool {
     };
 
     let start_time = DateTime::from_timestamp_millis(start_time).unwrap();
-    let existing_entries: Vec<TimeSheetEntry> = existing_entries.into_iter()
+    let existing_entries: Vec<TimeSheetEntry> = existing_entries
+        .into_iter()
         .filter(|e| e.description != description || e.start_time != start_time)
         .collect();
 
@@ -136,69 +135,62 @@ fn delete_entry(description: String, start_time: i64) -> bool {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimeSheetEntryTemplate {
-	description: String,
-	tags: Vec<String>,
-	properties: HashMap<String, String>,
+    description: String,
+    tags: Vec<String>,
+    properties: HashMap<String, String>,
 }
 
 #[tauri::command]
 fn suggest_entry_descriptions(partial: &str) -> Vec<TimeSheetEntryTemplate> {
-	let mut entries: Vec<TimeSheetEntry> = Vec::new();
-	let timesheet_path = std::env::var("TIMESHEET_PATH").unwrap();
-	if std::fs::exists(&timesheet_path).unwrap() {
-		let mut rdr = csv::ReaderBuilder::new()
-			.delimiter(b',')
-			.from_path(timesheet_path)
-			.unwrap();
-		entries.extend(rdr.deserialize::<TimeSheetEntryRaw>()
-			.into_iter()
-			.map(|e| e.unwrap().try_into().unwrap())
-		);
-	}
+    let entries: Vec<TimeSheetEntry> = get_entries();
 
-	let partial_lower = partial.to_lowercase();
-	let mut seen = HashSet::new();
-	let mut suggestions = Vec::new();
-	for entry in entries.iter().rev() {
-		let desc = entry.description.trim().to_lowercase();
-		let tags: std::collections::BTreeSet<_> = entry.tags.iter().map(|s| s.trim().to_lowercase()).collect();
-		if desc.starts_with(&partial_lower) || desc.contains(&partial_lower) {
-			let key = (desc.clone(), tags.clone());
-			if !seen.contains(&key) {
-				seen.insert(key);
-				let mut properties = entry.properties.clone();
-				//TODO Distinguish between template properties and instance properties
-				properties.remove("jira_worklog_id");
-				//TODO TimeSheetEntry::into::<TimeSheetEntryTemplate>()
-				suggestions.push(TimeSheetEntryTemplate {
-					description: entry.description.clone(),
-					tags: entry.tags.clone(),
-					properties,
-				});
-				if suggestions.len() >= 5 { break; }
-			}
-		}
-	}
-	suggestions
+    let partial_lower = partial.to_lowercase();
+    let mut seen = HashSet::new();
+    let mut suggestions = Vec::new();
+    for entry in entries.iter().rev() {
+        let desc = entry.description.trim().to_lowercase();
+        let tags: std::collections::BTreeSet<_> =
+            entry.tags.iter().map(|s| s.trim().to_lowercase()).collect();
+        if desc.starts_with(&partial_lower) || desc.contains(&partial_lower) {
+            let key = (desc.clone(), tags.clone());
+            if !seen.contains(&key) {
+                seen.insert(key);
+                let mut properties = entry.properties.clone();
+                //TODO Distinguish between template properties and instance properties
+                properties.remove("jira_worklog_id");
+                //TODO TimeSheetEntry::into::<TimeSheetEntryTemplate>()
+                suggestions.push(TimeSheetEntryTemplate {
+                    description: entry.description.clone(),
+                    tags: entry.tags.clone(),
+                    properties,
+                });
+                if suggestions.len() >= 5 {
+                    break;
+                }
+            }
+        }
+    }
+    suggestions
 }
 
 fn _equivalent_entry(a: &TimeSheetEntry, b: &TimeSheetEntry) -> bool {
-	if a.description.trim() != b.description.trim() {
-		return false;
-	}
-	if HashSet::<&String>::from_iter(a.tags.iter()) != HashSet::<&String>::from_iter(b.tags.iter()) {
-		return false;
-	}
-	//TODO For now don't consider properties, later distinguish "template properties" from "instance properties" (jira id vs worklog id)
-	// if a.properties.len() != b.properties.len() {
-	// 	return false;
-	// }
-	// for (k, v) in a.properties.iter() {
-	// 	if b.properties.get(k) != Some(v) {
-	// 		return false;
-	// 	}
-	// }
-	true
+    if a.description.trim() != b.description.trim() {
+        return false;
+    }
+    if HashSet::<&String>::from_iter(a.tags.iter()) != HashSet::<&String>::from_iter(b.tags.iter())
+    {
+        return false;
+    }
+    //TODO For now don't consider properties, later distinguish "template properties" from "instance properties" (jira id vs worklog id)
+    // if a.properties.len() != b.properties.len() {
+    // 	return false;
+    // }
+    // for (k, v) in a.properties.iter() {
+    // 	if b.properties.get(k) != Some(v) {
+    // 		return false;
+    // 	}
+    // }
+    true
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -206,13 +198,13 @@ pub fn run() {
     dotenvy::dotenv().expect(".env file with TIMESHEET_PATH should be in src-tauri");
 
     tauri::Builder::default()
-		.plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
-            get_entries,
+            get_date_entries,
             add_entry,
             update_entry,
             delete_entry,
-			suggest_entry_descriptions,
+            suggest_entry_descriptions,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -220,13 +212,28 @@ pub fn run() {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(try_from = "TimeSheetEntryRaw")]
-struct TimeSheetEntry {
-    description: String,
-    start_time: DateTime<Local>,
-    end_time: Option<DateTime<Local>>,
+pub struct TimeSheetEntry {
+    pub description: String,
+    pub start_time: DateTime<Local>,
+    pub end_time: Option<DateTime<Local>>,
     //TODO tags Set
-    tags: Vec<String>,
-	properties: HashMap<String, String>,
+    pub tags: Vec<String>,
+    pub properties: HashMap<String, String>,
+}
+
+impl TimeSheetEntry {
+    // fn duration(&self) -> Option<Duration> {
+    //     self.duration_millis().map(|d| Duration::milliseconds(d))
+    // }
+
+    fn duration_hours(&self) -> Option<f64> {
+        self.duration_millis().map(|d| d as f64 / 3600000.0)
+    }
+
+    fn duration_millis(&self) -> Option<i64> {
+        self.end_time
+            .map(|end_time| end_time.timestamp_millis() - self.start_time.timestamp_millis())
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -253,7 +260,7 @@ struct TimeSheetEntryRaw {
     start_time: i64,
     end_time: Option<i64>,
     tags: Option<String>,
-	properties: Option<String>,
+    properties: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -261,9 +268,9 @@ struct TimeSheetEntryFrontEnd {
     description: String,
     start_time: i64,
     end_time: Option<i64>,
-	//TODO to array
+    //TODO to array
     tags: String,
-	properties: HashMap<String, String>,
+    properties: HashMap<String, String>,
 }
 
 const DATE_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
@@ -303,72 +310,73 @@ impl TryFrom<TimeSheetEntryRaw> for TimeSheetEntry {
         let start_time = DateTime::from_timestamp_millis(value.start_time)
             .unwrap() //TODO Use ?
             .with_timezone(&Local);
-        let end_time = value
-            .end_time
-            .map(|et| {
-                DateTime::from_timestamp_millis(et)
-                    .unwrap() //TODO Use ?
-                    .with_timezone(&Local)
-            });
+        let end_time = value.end_time.map(|et| {
+            DateTime::from_timestamp_millis(et)
+                .unwrap() //TODO Use ?
+                .with_timezone(&Local)
+        });
 
         // Parse properties string into HashMap
         let mut properties = HashMap::new();
-		if let Some(properties_str) = value.properties {
-			if !properties_str.trim().is_empty() {
-				for pair in properties_str.split(',') {
-					let mut kv = pair.splitn(2, '=');
-					if let (Some(k), Some(v)) = (kv.next(), kv.next()) {
-						properties.insert(k.to_string(), v.to_string());
-					}
-				}
-			}
-		}
+        if let Some(properties_str) = value.properties {
+            if !properties_str.trim().is_empty() {
+                for pair in properties_str.split(',') {
+                    let mut kv = pair.splitn(2, '=');
+                    if let (Some(k), Some(v)) = (kv.next(), kv.next()) {
+                        properties.insert(k.to_string(), v.to_string());
+                    }
+                }
+            }
+        }
 
-		Ok(TimeSheetEntry {
-			description: value.description.unwrap_or_default(),
+        Ok(TimeSheetEntry {
+            description: value.description.unwrap_or_default(),
             start_time,
             end_time,
-            tags: value.tags.unwrap_or_default().split(',').map(|s| s.to_string()).collect(),
+            tags: value
+                .tags
+                .unwrap_or_default()
+                .split(',')
+                .map(|s| s.to_string())
+                .collect(),
             properties,
         })
     }
 }
 
 impl TryFrom<TimeSheetEntryFrontEnd> for TimeSheetEntry {
-	type Error = &'static str;
+    type Error = &'static str;
 
-	fn try_from(value: TimeSheetEntryFrontEnd) -> Result<Self, Self::Error> {
-		let start_time = DateTime::from_timestamp_millis(value.start_time)
+    fn try_from(value: TimeSheetEntryFrontEnd) -> Result<Self, Self::Error> {
+        let start_time = DateTime::from_timestamp_millis(value.start_time)
             .unwrap() //TODO Use ?
             .with_timezone(&Local);
-        let end_time = value
-            .end_time
-            .map(|et| {
-                DateTime::from_timestamp_millis(et)
-                    .unwrap() //TODO Use ?
-                    .with_timezone(&Local)
-            });
+        let end_time = value.end_time.map(|et| {
+            DateTime::from_timestamp_millis(et)
+                .unwrap() //TODO Use ?
+                .with_timezone(&Local)
+        });
 
-		Ok(Self {
-			description: value.description,
-			start_time,
-			end_time,
-			tags: value.tags.split(',').map(|s| s.to_string()).collect(),
-			properties: value.properties,
-		})
-	}
+        Ok(Self {
+            description: value.description,
+            start_time,
+            end_time,
+            tags: value.tags.split(',').map(|s| s.to_string()).collect(),
+            properties: value.properties,
+        })
+    }
 }
 
 impl From<TimeSheetEntry> for TimeSheetEntryFrontEnd {
-	fn from(entry: TimeSheetEntry) -> Self {
-		Self {
-			description: entry.description,
-			start_time: entry.start_time.timestamp_millis(),
-			end_time: entry.end_time.map(|dt| dt.timestamp_millis()),
-			tags: entry.tags.join(","),
-			properties: entry.properties,
-		}
-	}
+    fn from(entry: TimeSheetEntry) -> Self {
+        Self {
+            description: entry.description,
+            start_time: entry.start_time.timestamp_millis(),
+            end_time: entry.end_time.map(|dt| dt.timestamp_millis()),
+            tags: entry.tags.join(","),
+            properties: entry.properties,
+        }
+    }
 }
 
 //TODO Separate csv and json serialization
@@ -382,14 +390,58 @@ impl Serialize for TimeSheetEntry {
         state.serialize_field("start_time", &self.start_time.timestamp_millis())?;
         state.serialize_field("end_time", &self.end_time.map(|dt| dt.timestamp_millis()))?;
         state.serialize_field("tags", &self.tags.join(","))?;
-		//csv parser doesn't support HashMap
-		let mut properties = Vec::new();
-		for (k, v) in self.properties.iter() {
-			properties.push(format!("{k}={v}"));
-		}
-		state.serialize_field("properties", &properties.join(","))?;
+        //csv parser doesn't support HashMap
+        let mut properties = Vec::new();
+        for (k, v) in self.properties.iter() {
+            properties.push(format!("{k}={v}"));
+        }
+        state.serialize_field("properties", &properties.join(","))?;
         state.end()
     }
+}
+
+fn get_total_duration_for_date(date: &NaiveDate) -> f64 {
+    let entries = get_entries();
+
+    let mut total_hours = 0.0;
+
+    let entries = entries
+        .into_iter()
+        .filter(|e| &e.start_time.date_naive() == date)
+        .collect::<Vec<TimeSheetEntry>>();
+
+    for entry in entries {
+        if let Some(hours) = entry.duration_hours() {
+            total_hours += hours;
+        }
+    }
+
+    total_hours
+}
+
+fn get_total_duration_for_week() -> f64 {
+	let entries = get_entries();
+
+	let mut total_hours = 0.0;
+	let mut monday = Local::now().date_naive();
+	let current_day = Local::now().date_naive().weekday();
+	for _ in 0..current_day.num_days_from_monday() {
+		monday = monday.pred_opt().expect("Date underflow");
+	}
+	let sunday = monday.checked_add_days(Days::new(6)).expect("Date overflow");
+
+	let entries = entries
+		.into_iter()
+		.filter(|e| &e.start_time.date_naive() >= &monday && &e.start_time.date_naive() <= &sunday)
+		.collect::<Vec<TimeSheetEntry>>();
+
+	for entry in entries {
+		if let Some(hours) = entry.duration_hours() {
+			total_hours += hours;
+		}
+	}
+
+	total_hours
 }
 
 #[cfg(test)]
@@ -420,11 +472,37 @@ mod tests {
         ];
         assert_eq!(suggestions.len(), 4);
         for (desc, tags) in expected.iter() {
-            assert!(suggestions.iter().any(|s| &s.description == desc && &s.tags == tags));
+            assert!(suggestions
+                .iter()
+                .any(|s| &s.description == desc && &s.tags == tags));
         }
 
         // Should match nothing
         let suggestions = suggest_entry_descriptions("xyz");
         assert_eq!(suggestions.len(), 0);
     }
+
+    #[test]
+    fn test_single_day_total_time() {
+        dotenvy::dotenv().unwrap();
+
+        let date = NaiveDate::from_ymd_opt(2025, 5, 22).unwrap();
+        let total_hours = get_total_duration_for_date(&date);
+
+        println!("Total hours for {}: {:.2}", date, total_hours);
+    }
+
+	#[test]
+	fn test_week_remaining_time() {
+		dotenvy::dotenv().unwrap();
+
+		let total_hours = get_total_duration_for_week();
+
+		println!("Total hours: {:.2}", total_hours);
+
+		let holidays = 1;
+		let remaining_hours = (5 - holidays) as f64 * 8.0 - total_hours;
+
+		println!("Remaining hours: {:.2}", remaining_hours);
+	}
 }

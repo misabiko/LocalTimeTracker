@@ -60,7 +60,7 @@
 	let inputFocused = $state(false);
 
 	$effect(() => {
-		invoke<TimeSheetEntry[]>('get_entries', { date: currentDate.toString() })
+		invoke<TimeSheetEntry[]>('get_date_entries', { date: currentDate.toString() })
 			.then(e => {
 				entries = e as TimeSheetEntry[];
 				console.debug($state.snapshot(currentDate), $state.snapshot(entries));

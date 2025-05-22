@@ -111,7 +111,7 @@ fn format_for_jira(dt: &DateTime<Utc>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TimeSheetEntryRaw;
+    use crate::get_entries;
     use base64::prelude::BASE64_STANDARD;
     use base64::Engine;
     use chrono::{Local, TimeZone};
@@ -119,19 +119,7 @@ mod tests {
     use std::collections::HashMap;
 
     fn get_jira_entries() -> HashMap<String, Vec<TimeSheetEntry>> {
-        let mut entries: Vec<TimeSheetEntry> = vec![];
-        let timesheet_path = std::env::var("TIMESHEET_PATH").unwrap();
-        if std::fs::exists(&timesheet_path).unwrap() {
-            let mut rdr = csv::ReaderBuilder::new()
-                .delimiter(b',')
-                .from_path(timesheet_path)
-                .unwrap();
-            entries.extend(
-                rdr.deserialize::<TimeSheetEntryRaw>()
-                    .into_iter()
-                    .map(|e| e.unwrap().try_into().unwrap()),
-            );
-        }
+        let entries = get_entries();
 
         let mut jira_map = HashMap::<String, Vec<TimeSheetEntry>>::new();
         for entry in entries.into_iter() {
