@@ -605,8 +605,13 @@
 				entry.end_time = new Date().getTime();
 				return entry;
 			})}>Stop</button>
+		{:else}
+			<button onclick={() => updateEntry(modalEntryIndex, entry => {
+				entry.end_time = null;
+				return entry;
+			})}>Continue</button>
 		{/if}
-		<button onclick={() => copyAndStartEntry(modalEntryIndex)}>Continue</button>
+		<button onclick={() => copyAndStartEntry(modalEntryIndex)}>Copy & Start</button>
 		<button onclick={() => deleteEntry(modalEntryIndex)}>Delete</button>
 	{/if}
 	<!--TODO Support closing by clicking on backdrop-->
