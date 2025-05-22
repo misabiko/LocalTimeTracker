@@ -312,6 +312,12 @@
 		inputEntry = s;
 		entrySuggestions = [];
 	}
+
+	let holiday_count = $state(0);
+	let week_remaining_hours: number | null = $state(null);
+	async function updateRemainingWeekHours() {
+		week_remaining_hours = await invoke<number>('get_remaining_week_hours', {holidays: $state.snapshot(holiday_count)})
+	}
 </script>
 
 <style>
@@ -485,6 +491,11 @@
 		{#if currentDate.equals(Temporal.Now.plainDateISO())}
 			<span>End Time: {endTimeStr}</span>
 		{/if}
+		<span>Remaining Week Hours: {week_remaining_hours?.toFixed(2)}</span>
+		<div>
+			<input type='number' bind:value={holiday_count} min='0' max='4'/>
+			<button onclick={() => updateRemainingWeekHours()}>Update</button>
+		</div>
 	</div>
 </div>
 <div id='calendar' style:grid-template-rows={`repeat(${lastViewHour - firstViewHour + 1}, ${emPerHour}em)`}>

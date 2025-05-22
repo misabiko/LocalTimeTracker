@@ -193,7 +193,6 @@ fn _equivalent_entry(a: &TimeSheetEntry, b: &TimeSheetEntry) -> bool {
     true
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     dotenvy::dotenv().expect(".env file with TIMESHEET_PATH should be in src-tauri");
 
@@ -205,6 +204,7 @@ pub fn run() {
             update_entry,
             delete_entry,
             suggest_entry_descriptions,
+            get_remaining_week_hours,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -444,6 +444,11 @@ fn get_total_duration_for_week() -> f64 {
 	total_hours
 }
 
+#[tauri::command]
+fn get_remaining_week_hours(holidays: u8) -> f64 {
+    (5 - holidays) as f64 * 8.0 - get_total_duration_for_week()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -496,12 +501,7 @@ mod tests {
 	fn test_week_remaining_time() {
 		dotenvy::dotenv().unwrap();
 
-		let total_hours = get_total_duration_for_week();
-
-		println!("Total hours: {:.2}", total_hours);
-
-		let holidays = 1;
-		let remaining_hours = (5 - holidays) as f64 * 8.0 - total_hours;
+        let remaining_hours = get_remaining_week_hours(1);
 
 		println!("Remaining hours: {:.2}", remaining_hours);
 	}
