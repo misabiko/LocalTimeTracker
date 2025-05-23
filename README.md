@@ -5,7 +5,7 @@ Deno, Tauri, Svelte
 ---
 - TODO +3 Tag color
 - TODO +2 "Start from end of this entry"
-- TODO +2 Week view
+- TODO +4 Week view
 - TODO +1 Fix Stop
 - TODO +1 Test get current entry from given csv
 - TODO Create/update jira worklog from UI
@@ -13,7 +13,7 @@ Deno, Tauri, Svelte
 - TODO Deduct average week excess time from week's 40 hours
 - TODO Per day hour graph
 - TODO Per week hour graph
-- TODO -1 Manual entry
+- TODO Manual entry
 - TODO package.json → deno.jsonc
 - TODO Try accessing (read-only) csv file from Excel
   - TODO Confirm CSV history on OneDrive
@@ -27,7 +27,6 @@ Deno, Tauri, Svelte
 - TODO Show duration on entry blocks
 - TODO Dynamic metadata
 - TODO Grey current time marker on diff date
-- TODO +1 Week view
 - TODO Delete confirmation
 - TODO +1 Projects
   - TODO +1 Only count project in total hours
@@ -35,6 +34,3 @@ Deno, Tauri, Svelte
 - TODO Format/lint
   - tabs
   - singlequotes
-- TODO -1 Import toggl timesheet into main timesheet
-  - We can do that manually in script
-- TODO Diff local logged time with jira time
