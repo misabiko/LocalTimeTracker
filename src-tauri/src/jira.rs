@@ -1,4 +1,5 @@
-use crate::{update_entry, TimeSheetEntry, TimeSheetEntryFrontEnd};
+use std::collections::HashMap;
+use crate::{get_entries, update_entry, TimeSheetEntry, TimeSheetEntryFrontEnd};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use chrono::{DateTime, Utc};
@@ -82,6 +83,44 @@ async fn create_worklog(entry: &TimeSheetEntry) -> Result<Worklog, ()> {
     Ok(worklog)
 }
 
+pub async fn add_missing_worklogs() {
+    let jira_prefix_url = std::env::var("VITE_JIRA_URL_PREFIX").unwrap();
+
+    for (jira_id, entries) in get_jira_entries() {
+        if jira_id.is_empty() {
+            eprintln!("No jira id found on {entries:#?}");
+            continue;
+        }
+        println!("{jira_prefix_url}browse/{jira_id}");
+        for entry in entries.iter() {
+            if entry.properties.contains_key("jira_worklog_id") {
+                continue;
+            }
+            println!("{}", entry.description);
+            let _r = create_worklog(entry).await.unwrap();
+            // println!("{r:#?}");
+        }
+    }
+}
+
+fn get_jira_entries() -> HashMap<String, Vec<TimeSheetEntry>> {
+    let entries = get_entries();
+
+    let mut jira_map = HashMap::<String, Vec<TimeSheetEntry>>::new();
+    for entry in entries.into_iter() {
+        if entry.properties.contains_key("jira") {
+            let jira_id = entry.properties.get("jira").unwrap().to_string();
+            if jira_map.contains_key(&jira_id) {
+                jira_map.get_mut(&jira_id).unwrap().push(entry);
+            } else {
+                jira_map.insert(jira_id.clone(), vec![entry]);
+            }
+        }
+    }
+
+    jira_map
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
@@ -117,24 +156,6 @@ mod tests {
     use chrono::{Local, TimeZone};
     use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
     use std::collections::HashMap;
-
-    fn get_jira_entries() -> HashMap<String, Vec<TimeSheetEntry>> {
-        let entries = get_entries();
-
-        let mut jira_map = HashMap::<String, Vec<TimeSheetEntry>>::new();
-        for entry in entries.into_iter() {
-            if entry.properties.contains_key("jira") {
-                let jira_id = entry.properties.get("jira").unwrap().to_string();
-                if jira_map.contains_key(&jira_id) {
-                    jira_map.get_mut(&jira_id).unwrap().push(entry);
-                } else {
-                    jira_map.insert(jira_id.clone(), vec![entry]);
-                }
-            }
-        }
-
-        jira_map
-    }
 
     #[test]
     fn test_total_jira_time() {
@@ -269,25 +290,9 @@ mod tests {
     async fn test_add_missing_worklogs() {
         dotenvy::dotenv().unwrap();
 
-        let jira_prefix_url = std::env::var("VITE_JIRA_URL_PREFIX").unwrap();
-
         //op run --env-file ../.env -- cargo test test_add_missing_worklogs -- --nocapture
 
-        for (jira_id, entries) in get_jira_entries() {
-            if jira_id.is_empty() {
-                eprintln!("No jira id found on {entries:#?}");
-                continue;
-            }
-            println!("{jira_prefix_url}browse/{jira_id}");
-            for entry in entries.iter() {
-                if entry.properties.contains_key("jira_worklog_id") {
-                    continue;
-                }
-                println!("{}", entry.description);
-                let r = create_worklog(entry).await.unwrap();
-                // println!("{r:#?}");
-            }
-        }
+        add_missing_worklogs().await;
     }
 
     #[test]

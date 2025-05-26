@@ -27,8 +27,6 @@ chrono = "0.4.40"
 tauri-plugin-shell = "2.2.1"
 reqwest = { version = "0.12.15", features = ["json"] }
 base64 = "0.22.1"
-
-[dev-dependencies]
 tokio = {  version = "1.44.2", features= ["rt", "macros"] }
 
 [profile.release.package.wry]

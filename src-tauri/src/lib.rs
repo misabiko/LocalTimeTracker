@@ -1,4 +1,4 @@
-mod jira;
+pub mod jira;
 
 use std::collections::{HashMap, HashSet};
 
