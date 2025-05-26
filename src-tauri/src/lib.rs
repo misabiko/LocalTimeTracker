@@ -222,17 +222,16 @@ pub struct TimeSheetEntry {
 }
 
 impl TimeSheetEntry {
-    // fn duration(&self) -> Option<Duration> {
-    //     self.duration_millis().map(|d| Duration::milliseconds(d))
+    // fn duration(&self) -> Duration {
+    //     Duration::milliseconds(self.duration_millis())
     // }
 
-    fn duration_hours(&self) -> Option<f64> {
-        self.duration_millis().map(|d| d as f64 / 3600000.0)
+    fn duration_hours(&self) -> f64 {
+        self.duration_millis() as f64 / 3600000.0
     }
 
-    fn duration_millis(&self) -> Option<i64> {
-        self.end_time
-            .map(|end_time| end_time.timestamp_millis() - self.start_time.timestamp_millis())
+    fn duration_millis(&self) -> i64 {
+        self.end_time.unwrap_or_else(|| Local::now()).timestamp_millis() - self.start_time.timestamp_millis()
     }
 }
 
@@ -411,9 +410,7 @@ fn get_total_duration_for_date(date: &NaiveDate) -> f64 {
         .collect::<Vec<TimeSheetEntry>>();
 
     for entry in entries {
-        if let Some(hours) = entry.duration_hours() {
-            total_hours += hours;
-        }
+        total_hours += entry.duration_hours();
     }
 
     total_hours
@@ -436,9 +433,7 @@ fn get_total_duration_for_week() -> f64 {
 		.collect::<Vec<TimeSheetEntry>>();
 
 	for entry in entries {
-		if let Some(hours) = entry.duration_hours() {
-			total_hours += hours;
-		}
+        total_hours += entry.duration_hours();
 	}
 
 	total_hours
