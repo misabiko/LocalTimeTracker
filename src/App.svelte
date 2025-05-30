@@ -58,6 +58,7 @@
 
 	let entrySuggestions: TimeSheetEntryTemplate[] = $state([]);
 	let inputFocused = $state(false);
+	let enableSuggestions = $state(false);
 
 	$effect(() => {
 		invoke<TimeSheetEntry[]>('get_date_entries', { date: currentDate.toString() })
@@ -72,12 +73,16 @@
 			entrySuggestions = [];
 			return;
 		}
-		invoke<TimeSheetEntryTemplate[]>('suggest_entry_descriptions', { partial: inputEntry.description })
-			.then(suggestions => {
-				if (Array.isArray(suggestions.tags))
-					suggestions.tags = suggestions.tags.join(',');
-				entrySuggestions = suggestions;
-			});
+
+		//TODO Add cooldown for suggestions
+		if (enableSuggestions) {
+			invoke<TimeSheetEntryTemplate[]>('suggest_entry_descriptions', {partial: inputEntry.description})
+				.then(suggestions => {
+					if (Array.isArray(suggestions.tags))
+						suggestions.tags = suggestions.tags.join(',');
+					entrySuggestions = suggestions;
+				});
+		}
 	})
 
 	async function updateEntry(index: number, update: (entry: TimeSheetEntry) => TimeSheetEntry) {
@@ -463,6 +468,10 @@
 				{/each}
 			</ul>
 		{/if}
+		<label>
+			Enable Suggestions
+			<input type='checkbox' bind:checked={enableSuggestions} title='Enable Suggestions'/>
+		</label>
 	</div>
 	<button onclick={() => startNewEntry()} disabled={!inputEntry.description.length}>Start</button>
 	<button onclick={() => stopCurrentEntry()} disabled={currentEntryIndex == null}>Stop</button>
