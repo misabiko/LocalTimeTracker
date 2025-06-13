@@ -500,4 +500,6 @@ mod tests {
 
 		println!("Remaining hours: {:.2}", remaining_hours);
 	}
+
+    //TODO Add tests for duplicate entry bug
 }
