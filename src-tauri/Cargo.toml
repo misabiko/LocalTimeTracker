@@ -28,6 +28,7 @@ tauri-plugin-shell = "2.2.1"
 reqwest = { version = "0.12.15", features = ["json"] }
 base64 = "0.22.1"
 tokio = {  version = "1.44.2", features= ["rt", "macros"] }
+tempfile = "3.20.0"
 
 [profile.release.package.wry]
 debug = true

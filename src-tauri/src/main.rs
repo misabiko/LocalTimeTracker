@@ -12,6 +12,9 @@ fn main() {
         }else {
             panic!("Unknown argument: {:?}", args);
         }
+	}else if args.contains(&"--purge-duplicates".to_string()) {
+		dotenvy::dotenv().unwrap();
+		local_timesheet_lib::purge_duplicates();
     }else {
         local_timesheet_lib::run()
     }

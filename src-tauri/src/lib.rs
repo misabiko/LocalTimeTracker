@@ -262,7 +262,7 @@ struct TimeSheetEntryRaw {
     properties: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 struct TimeSheetEntryFrontEnd {
     description: String,
     start_time: i64,
@@ -444,6 +444,43 @@ fn get_remaining_week_hours(holidays: u8) -> f64 {
     (5 - holidays) as f64 * 8.0 - get_total_duration_for_week()
 }
 
+pub fn purge_duplicates() {
+	use std::fs::File;
+	use std::io::{BufReader, BufWriter, BufRead, Write};
+	use csv::{Reader, Writer};
+
+	let file_path = std::env::var("TIMESHEET_PATH").unwrap();
+	let header = {
+		let file = File::open(&file_path).unwrap();
+		BufReader::new(file).lines().next().unwrap().unwrap()
+	};
+	let file = File::open(&file_path).unwrap();
+	let mut reader = Reader::from_reader(BufReader::new(file));
+
+	let mut records = Vec::new();
+	for result in reader.records() {
+		records.push(result.unwrap());
+	}
+
+	let mut seen = HashSet::new();
+	records.retain(|entry| seen.insert(entry.as_slice().to_string()));
+
+
+	let file = File::create(&file_path).unwrap();
+
+	let mut writer = BufWriter::new(file);
+	//WriterBuilder::has_header only works with serialize, not with write_record
+	writer.write_all(header.as_bytes()).unwrap();
+	writer.write_all(b"\n").unwrap();
+
+	let mut writer = Writer::from_writer(writer);
+
+	for record in records {
+		writer.write_record(&record).unwrap();
+	}
+	writer.flush().unwrap();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -482,24 +519,259 @@ mod tests {
         assert_eq!(suggestions.len(), 0);
     }
 
-    #[test]
-    fn test_single_day_total_time() {
-        dotenvy::dotenv().unwrap();
+    // #[test]
+    // fn test_single_day_total_time() {
+    //     dotenvy::dotenv().unwrap();
 
-        let date = NaiveDate::from_ymd_opt(2025, 5, 22).unwrap();
-        let total_hours = get_total_duration_for_date(&date);
+    //     let date = NaiveDate::from_ymd_opt(2025, 5, 22).unwrap();
+    //     let total_hours = get_total_duration_for_date(&date);
 
-        println!("Total hours for {}: {:.2}", date, total_hours);
-    }
+    //     println!("Total hours for {}: {:.2}", date, total_hours);
+    // }
+
+	// #[test]
+	// fn test_week_remaining_time() {
+	// 	dotenvy::dotenv().unwrap();
+
+    //     let remaining_hours = get_remaining_week_hours(1);
+
+	// 	println!("Remaining hours: {:.2}", remaining_hours);
+	// }
 
 	#[test]
-	fn test_week_remaining_time() {
-		dotenvy::dotenv().unwrap();
+	fn test_single_add_entry_no_duplication() {
+		use tempfile::NamedTempFile;
+		use chrono::{Local, Duration};
+		use std::fs::File;
+		use std::io::{BufRead, BufReader};
 
-        let remaining_hours = get_remaining_week_hours(1);
+		// Create a temp file and set TIMESHEET_PATH
+		let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+		let temp_path = temp_file.path().to_path_buf();
+		std::env::set_var("TIMESHEET_PATH", &temp_path);
 
-		println!("Remaining hours: {:.2}", remaining_hours);
+		// Add a single entry
+		let now = Local::now();
+		let entry = TimeSheetEntryFrontEnd {
+			description: "Single entry".to_string(),
+			start_time: now.timestamp_millis(),
+			end_time: Some((now + Duration::minutes(1)).timestamp_millis()),
+			tags: "test".to_string(),
+			properties: Default::default(),
+		};
+		assert!(add_entry(entry));
+
+		// Count lines in the CSV file
+		let file = File::open(&temp_path).expect("Failed to open temp csv");
+		let reader = BufReader::new(file);
+		let line_count = reader.lines().count();
+
+		// Should be 2 (header + entry)
+		assert_eq!(line_count, 2, "CSV file should have 2 lines, but has {}. This indicates duplication bug.", line_count);
 	}
 
-    //TODO Add tests for duplicate entry bug
+	#[test]
+	fn test_add_multiple_entries_no_duplication() {
+		use tempfile::NamedTempFile;
+		use chrono::{Local, Duration};
+		use std::fs::File;
+		use std::io::{BufRead, BufReader};
+
+		// Create a temp file and set TIMESHEET_PATH
+		let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+		let temp_path = temp_file.path().to_path_buf();
+		std::env::set_var("TIMESHEET_PATH", &temp_path);
+
+		// Add several unique entries
+		let now = Local::now();
+		for i in 0..3 {
+			let entry = TimeSheetEntryFrontEnd {
+				description: format!("Entry {i}"),
+				start_time: (now + Duration::minutes(i)).timestamp_millis(),
+				end_time: Some((now + Duration::minutes(i+1)).timestamp_millis()),
+				tags: "test".to_string(),
+				properties: Default::default(),
+			};
+			assert!(add_entry(entry));
+		}
+
+		// Add one more entry
+		let entry = TimeSheetEntryFrontEnd {
+			description: "Final entry".to_string(),
+			start_time: (now + Duration::minutes(10)).timestamp_millis(),
+			end_time: Some((now + Duration::minutes(11)).timestamp_millis()),
+			tags: "test".to_string(),
+			properties: Default::default(),
+		};
+		assert!(add_entry(entry));
+
+		// Count lines in the CSV file
+		let file = File::open(&temp_path).expect("Failed to open temp csv");
+		let reader = BufReader::new(file);
+		let line_count = reader.lines().count();
+
+		// Should be 5 (not more)
+		assert_eq!(line_count, 5, "CSV file should have 5 lines, but has {}. This indicates exponential growth/duplication bug.", line_count);
+	}
+
+	#[test]
+	fn test_update_single_entry_no_duplication() {
+		use tempfile::NamedTempFile;
+		use chrono::{Local, Duration};
+		use std::fs::File;
+		use std::io::{BufRead, BufReader};
+
+		// Create a temp file and set TIMESHEET_PATH
+		let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+		let temp_path = temp_file.path().to_path_buf();
+		std::env::set_var("TIMESHEET_PATH", &temp_path);
+
+		// Add an entry
+		let now = Local::now();
+		let entry = TimeSheetEntryFrontEnd {
+			description: "Original entry".to_string(),
+			start_time: now.timestamp_millis(),
+			end_time: Some((now + Duration::minutes(1)).timestamp_millis()),
+			tags: "test".to_string(),
+			properties: Default::default(),
+		};
+		assert!(add_entry(entry.clone()));
+
+		// Update the entry
+		let updated_entry = TimeSheetEntryFrontEnd {
+			description: "Updated entry".to_string(),
+			start_time: now.timestamp_millis(),
+			end_time: Some((now + Duration::minutes(2)).timestamp_millis()),
+			tags: "test".to_string(),
+			properties: Default::default(),
+		};
+		assert!(update_entry(entry.description, entry.start_time, updated_entry));
+
+		// Count lines in the CSV file
+		let file = File::open(&temp_path).expect("Failed to open temp csv");
+		let reader = BufReader::new(file);
+		let line_count = reader.lines().count();
+
+		// Should be 2 (header + updated entry)
+		assert_eq!(line_count, 2, "CSV file should have 2 lines, but has {}. This indicates duplication bug.", line_count);
+	}
+
+	#[test]
+	fn test_update_multiple_entries_no_duplication() {
+		use tempfile::NamedTempFile;
+		use chrono::{Local, Duration};
+		use std::fs::File;
+		use std::io::{BufRead, BufReader};
+
+		// Create a temp file and set TIMESHEET_PATH
+		let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+		let temp_path = temp_file.path().to_path_buf();
+		std::env::set_var("TIMESHEET_PATH", &temp_path);
+
+		// Add multiple entries
+		let now = Local::now();
+		let mut entries = Vec::new();
+		for i in 0..3 {
+			let entry = TimeSheetEntryFrontEnd {
+				description: format!("Entry {i}"),
+				start_time: (now + Duration::minutes(i)).timestamp_millis(),
+				end_time: Some((now + Duration::minutes(i+1)).timestamp_millis()),
+				tags: "test".to_string(),
+				properties: Default::default(),
+			};
+			assert!(add_entry(entry.clone()));
+			entries.push(entry);
+		}
+
+		// Update the entries
+		for i in 0..entries.len() {
+			let updated_entry = TimeSheetEntryFrontEnd {
+				description: format!("Updated Entry {i}"),
+				start_time: (now + Duration::minutes(i as i64)).timestamp_millis(),
+				end_time: Some((now + Duration::minutes(i as i64 + 1)).timestamp_millis()),
+				tags: "test".to_string(),
+				properties: Default::default(),
+			};
+			assert!(update_entry(entries[i].description.clone(), entries[i].start_time, updated_entry.clone()));
+		}
+
+		// Count lines in the CSV file
+		let file = File::open(&temp_path).expect("Failed to open temp csv");
+		let reader = BufReader::new(file);
+		let line_count = reader.lines().count();
+
+		// Should be 4 (header + updated entries)
+		assert_eq!(line_count, 4, "CSV file should have 4 lines, but has {}. This indicates duplication bug.", line_count);
+	}
+
+	#[test]
+	fn test_get_entries_no_duplication() {
+		use tempfile::NamedTempFile;
+		use chrono::{Local, Duration};
+
+		// Create a temp file and set TIMESHEET_PATH
+		let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+		let temp_path = temp_file.path().to_path_buf();
+		std::env::set_var("TIMESHEET_PATH", &temp_path);
+
+		// Add multiple entries
+		let now = Local::now();
+		for i in 0..3 {
+			let entry = TimeSheetEntryFrontEnd {
+				description: format!("Entry {i}"),
+				start_time: (now + Duration::minutes(i)).timestamp_millis(),
+				end_time: Some((now + Duration::minutes(i+1)).timestamp_millis()),
+				tags: "test".to_string(),
+				properties: Default::default(),
+			};
+			assert!(add_entry(entry));
+		}
+
+		// Get entries and check count
+		let entries = get_entries();
+		assert_eq!(entries.len(), 3, "get_entries should return 3 entries, but returned {}. This indicates duplication bug.", entries.len());
+	}
+
+	#[test]
+	fn test_purge_duplicates() {
+		use tempfile::NamedTempFile;
+		use chrono::{Local, Duration};
+		use std::fs::File;
+		use std::io::{BufRead, BufReader};
+
+		// Create a temp file and set TIMESHEET_PATH
+		let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+		let temp_path = temp_file.path().to_path_buf();
+		std::env::set_var("TIMESHEET_PATH", &temp_path);
+
+		// Add multiple entries with some duplicates
+		let now = Local::now();
+		for i in 0..3 {
+			let entry = TimeSheetEntryFrontEnd {
+				description: format!("Entry {i}"),
+				start_time: (now + Duration::minutes(i)).timestamp_millis(),
+				end_time: Some((now + Duration::minutes(i+1)).timestamp_millis()),
+				tags: "test".to_string(),
+				properties: Default::default(),
+			};
+			assert!(add_entry(entry.clone()));
+			// Add duplicate
+			assert!(add_entry(entry));
+		}
+
+		// Purge duplicates
+		purge_duplicates();
+
+		println!("{}", std::fs::read_to_string(&temp_path).unwrap());
+
+		// Expect the file to have 4 lines
+		let file = File::open(&temp_path).expect("Failed to open temp csv");
+		let reader = BufReader::new(file);
+		let line_count = reader.lines().count();
+		assert_eq!(line_count, 4, "CSV file should have 4 lines, but has {}.", line_count);
+
+		// Get entries and check count
+		let entries = get_entries();
+		assert_eq!(entries.len(), 3, "After purging duplicates, get_entries should return 3 entries, but returned {}. This indicates purge_duplicates is not working correctly.", entries.len());
+	}
 }
