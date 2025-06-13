@@ -9,13 +9,13 @@ fn main() {
         if args.contains(&"--add-worklogs".to_string()) {
             dotenvy::dotenv().unwrap();
             tokio::runtime::Runtime::new().unwrap().block_on(local_timesheet_lib::jira::add_missing_worklogs());
-        }else {
+        }else if args.contains(&"--purge-duplicates".to_string()) {
+			dotenvy::dotenv().unwrap();
+			local_timesheet_lib::purge_duplicates();
+		}else {
             panic!("Unknown argument: {:?}", args);
         }
-	}else if args.contains(&"--purge-duplicates".to_string()) {
-		dotenvy::dotenv().unwrap();
-		local_timesheet_lib::purge_duplicates();
-    }else {
+	}else {
         local_timesheet_lib::run()
     }
 }
