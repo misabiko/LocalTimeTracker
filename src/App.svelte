@@ -37,6 +37,9 @@
 	let firstViewHour = $state(6);
 	let lastViewHour = $state(20);
 
+	let includeWeekHoursInTotalHours = $state(false);
+	//TODO Update in realtime
+	let week_remaining_hours: number | null = $state(null);
 	let totalHoursToday = $derived.by(() => {
 		if (entries === null)
 			return 0;
@@ -51,10 +54,11 @@
 		hours: Math.floor(totalHoursToday),
 		minutes: Math.floor((totalHoursToday % 1) * 60),
 	}));
+	let todayHoursQuota = $derived(includeWeekHoursInTotalHours && week_remaining_hours !== null ? week_remaining_hours % 8 : 8);
 	let endTimeStr = $derived(Intl.DateTimeFormat('en-CA', {
 		hour: '2-digit',
 		minute: '2-digit',
-	}).format(Temporal.Now.instant().add({seconds: Math.round((8 - totalHoursToday) * 60 * 60)}).epochMilliseconds));
+	}).format(Temporal.Now.instant().add({seconds: Math.round((todayHoursQuota - totalHoursToday) * 60 * 60)}).epochMilliseconds));
 
 	let entrySuggestions: TimeSheetEntryTemplate[] = $state([]);
 	let inputFocused = $state(false);
@@ -319,7 +323,6 @@
 	}
 
 	let holiday_count = $state(0);
-	let week_remaining_hours: number | null = $state(null);
 	async function updateRemainingWeekHours() {
 		week_remaining_hours = await invoke<number>('get_remaining_week_hours', {holidays: $state.snapshot(holiday_count)})
 	}
@@ -504,6 +507,10 @@
 		<div>
 			<input type='number' bind:value={holiday_count} min='0' max='4'/>
 			<button onclick={() => updateRemainingWeekHours()}>Update</button>
+			<label>
+				Modify Total Hours
+				<input type='checkbox' bind:checked={includeWeekHoursInTotalHours}/>
+			</label>
 		</div>
 	</div>
 </div>
